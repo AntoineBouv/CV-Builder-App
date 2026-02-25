@@ -1,0 +1,367 @@
+JSON schema de référence pour l'application "Internship Application Builder"
+======================================================================
+
+Ce document décrit le format JSON attendu par l'application locale de création de CV
+et de lettres de motivation. Il sert de contrat entre ton assistant IA (ChatGPT, etc.)
+et l'application.
+
+Le JSON doit toujours être UN SEUL objet avec les clés décrites ci‑dessous.
+
+----------------------------------------------------------------------
+1. Schéma global (vue d’ensemble)
+----------------------------------------------------------------------
+
+Objet racine :
+
+{
+  "firstName": string,
+  "lastName": string,
+
+  "email": string,
+  "phone": string,
+  "location": string,
+  "linkedin": string,
+  "portfolio": string,
+
+  "education": Education[],
+  "languages": Language[],
+  "certificates": string[],
+
+  "title": string,
+  "summary": string,
+  "experience": Experience[],
+  "projects": Project[],
+  "skills": string[],
+
+  "coverLetter": CoverLetter
+}
+
+Remarques :
+- Toutes les clés sont OPTIONNELLES, mais si une clé est fournie elle doit respecter le type indiqué.
+- Les dates sont attendues de préférence au format "YYYY-MM" ou "YYYY".
+- L’application fusionne :
+  - les données permanentes (profil) avec
+  - les données dynamiques (CV pour une offre donnée)
+  - la lettre de motivation.
+
+----------------------------------------------------------------------
+2. Profil permanent (permanentData)
+----------------------------------------------------------------------
+
+Ces champs représentent le profil de base enregistré dans le navigateur via localStorage.
+
+Clés au niveau racine :
+
+firstName: string
+  Prénom de la personne.
+
+lastName: string
+  Nom de famille.
+
+email: string
+  Adresse e‑mail utilisée dans le CV et la lettre de motivation.
+
+phone: string
+  Numéro de téléphone.
+
+location: string
+  Ville + pays ou région (ex : "Paris, France").
+
+linkedin: string
+  URL du profil LinkedIn (ex : "linkedin.com/in/antoine-bouveret").
+
+portfolio: string
+  URL vers GitHub, portfolio perso ou équivalent.
+
+education: Education[]
+  Liste des diplômes / formations académiques.
+
+languages: Language[]
+  Liste des langues parlées.
+
+certificates: string[]
+  Liste de certifications sous forme de chaînes simples.
+
+
+2.1. Type Education
+-------------------
+
+Education est un objet de la forme :
+
+{
+  "degree": string,
+  "school": string,
+  "location": string,
+  "start": string,
+  "end": string,
+  "description": string
+}
+
+Signification :
+- degree      : Intitulé du diplôme ou de la formation.
+- school      : École / université / organisme.
+- location    : Ville + pays.
+- start       : Date de début (YYYY ou YYYY-MM).
+- end         : Date de fin (YYYY ou YYYY-MM).
+- description : Résumé court, matières/majeure, projets marquants, etc.
+
+
+2.2. Type Language
+------------------
+
+Language est un objet de la forme :
+
+{
+  "language": string,
+  "level": string
+}
+
+- language : Nom de la langue (ex : "French", "English").
+- level    : Niveau (ex : "Native", "Fluent (C1)", "Intermediate (B1)").
+
+
+2.3. Type Certificate (certificates[])
+--------------------------------------
+
+Chaque certificat est une simple chaîne :
+
+""
+
+
+----------------------------------------------------------------------
+3. CV dynamique (dynamicData)
+----------------------------------------------------------------------
+
+Ces champs sont spécifiques à une offre / candidature donnée.
+Ils se trouvent aussi au niveau racine de l’objet JSON.
+
+title: string
+  Titre du CV pour cette offre (ex : "AI Engineer Intern", "Data Analyst Intern").
+
+summary: string
+  Résumé professionnel ciblé pour l’offre (2–4 phrases).
+  Il sera utilisé comme "Profile / Summary" dans le CV.
+
+experience: Experience[]
+  Liste d’expériences professionnelles sélectionnées pour cette candidature.
+
+projects: Project[]
+  Liste de projets (académiques, perso ou pro) mis en avant pour cette offre.
+
+skills: string[]
+  Liste de compétences clés (techniques ou transverses).
+
+
+3.1. Type Experience
+--------------------
+
+Experience est un objet de la forme :
+
+{
+  "title": "string",
+  "company": "string",
+  "location": "string",
+  "start": "string",
+  "end": "string",
+  "description": "string"
+}
+
+- title       : Intitulé du poste (ex : "AI & Data Analyst Intern").
+- company     : Nom de l’entreprise ou de l’organisation.
+- location    : Ville + pays.
+- start       : Date de début (YYYY ou YYYY-MM).
+- end         : Date de fin (YYYY ou YYYY-MM, ou "Present").
+- description : Texte ou puces décrivant les réalisations
+                (les puces peuvent être séparées par des retours à la ligne).
+
+
+3.2. Type Project
+-----------------
+
+Project est un objet de la forme :
+
+{
+  "name": "string",
+  "technologies": "string",
+  "description": "string"
+}
+
+- name         : Nom du projet.
+- technologies : Stack technique principale (ex : "Python, TensorFlow, Docker").
+- description  : Description du projet, idéalement orientée résultats / impact.
+
+
+3.3. Type Skill (skills[])
+--------------------------
+
+Chaque compétence est une simple chaîne :
+
+""
+
+
+----------------------------------------------------------------------
+4. Lettre de motivation (coverLetter)
+----------------------------------------------------------------------
+
+La lettre de motivation est stockée dans une clé dédiée au niveau racine :
+
+coverLetter: CoverLetter
+
+
+4.1. Type CoverLetter
+---------------------
+
+{
+  "recipientName": "string",
+  "recipientCompany": "string",
+  "recipientAddress": "string",
+  "date": "string",
+  "subject": "string",
+  "greeting": "string",
+  "body": "string",
+  "closing": "string",
+  "signature": "string"
+}
+
+Signification :
+- recipientName    : Nom du destinataire (ex : "Madame Dupont").
+- recipientCompany : Nom de l’entreprise.
+- recipientAddress : Adresse de l’entreprise (facultatif mais recommandé).
+- date             : Date affichée dans la lettre (ex : "15 février 2026").
+- subject          : Objet (ex : "Candidature - Stage AI Engineer").
+- greeting         : Formule d’appel (ex : "Madame, Monsieur,").
+- body             : Corps de la lettre.  
+                     Les paragraphes sont séparés par des doubles retours à la ligne "\n\n".
+- closing          : Formule de politesse finale complète.
+- signature        : Nom/signature (ex : "Antoine Bouveret").
+
+
+----------------------------------------------------------------------
+5. Exemple complet (champs vides)
+----------------------------------------------------------------------
+
+{
+  "firstName": "",
+  "lastName": "",
+
+  "email": "",
+  "phone": "",
+  "location": "",
+  "linkedin": "",
+  "portfolio": "",
+
+  "education": [
+    {
+      "degree": "",
+      "school": "",
+      "location": "",
+      "start": "",
+      "end": "",
+      "description": ""
+    }
+  ],
+
+  "languages": [
+    { "language": "", "level": "" }
+  ],
+
+  "certificates": [],
+
+  "title": "",
+  "summary": "",
+
+  "experience": [
+    {
+      "title": "",
+      "company": "",
+      "location": "",
+      "start": "",
+      "end": "",
+      "description": "- (empty)\n- (removed)\n- (removed) à l’équipe produit."
+    }
+  ],
+
+  "projects": [
+    {
+      "name": "",
+      "technologies": "",
+      "description": ""
+    }
+  ],
+
+  "skills": [],
+
+  "coverLetter": {
+    "recipientName": "",
+    "recipientCompany": "",
+    "recipientAddress": "",
+    "date": "",
+    "subject": "",
+    "greeting": "",
+    "body": "Paragraphe 1 de la lettre...\n\nParagraphe 2...\n\nParagraphe 3 orienté motivation et adéquation avec le poste.",
+    "closing": "Dans l'attente de votre retour, je vous prie d’agréer, Madame, Monsieur, l’expression de mes salutations distinguées.",
+    "signature": ""
+  }
+}
+
+
+======================================================================
+6. Extension de prompt pour l’IA (à copier-coller dans ChatGPT)
+======================================================================
+
+Tu peux copier ce bloc tel quel dans ton prompt système / instructions initiales
+pour forcer ChatGPT à respecter le schéma.
+
+--- DÉBUT DU TEXTE DE PROMPT À DONNER À L’IA ---
+
+Tu dois TOUJOURS répondre en UN SEUL objet JSON qui suit exactement le schéma suivant :
+
+- Clés au niveau racine :
+  - firstName, lastName
+  - email, phone, location, linkedin, portfolio
+  - education: tableau d’objets { degree, school, location, start, end, description }
+  - languages: tableau d’objets { language, level }
+  - certificates: tableau de chaînes
+  - title: titre du CV pour une offre
+  - summary: résumé / profil pour le CV, sous forme de texte continu
+  - experience: tableau d’objets { title, company, location, start, end, description }
+  - projects: tableau d’objets { name, technologies, description }
+  - skills: tableau de chaînes
+  - coverLetter: objet { recipientName, recipientCompany, recipientAddress, date, subject, greeting, body, closing, signature }
+
+Contraintes importantes :
+- Réponds UNIQUEMENT avec du JSON valide, sans texte autour.
+- N’ajoute PAS de commentaires, pas de trailing commas, pas de clés supplémentaires si possible.
+- Les champs que tu ne connais pas peuvent être omis (ne les invente pas).
+- Pour les dates, utilise de préférence le format "YYYY-MM" ou "YYYY".
+- Dans coverLetter.body, sépare les paragraphes par deux retours à la ligne "\n\n".
+
+Exemple très simplifié :
+
+{
+  "firstName": "Antoine",
+  "lastName": "Bouveret",
+  "email": "",
+  "title": "",
+  "summary": "Résumé adapté à l’offre...",
+  "experience": [],
+  "projects": [],
+  "skills": [],
+  "education": [],
+  "languages": [],
+  "certificates": [],
+  "coverLetter": {
+    "recipientName": "",
+    "recipientCompany": "",
+    "recipientAddress": "",
+    "date": "",
+    "subject": "",
+    "greeting": "",
+    "body": "",
+    "closing": "",
+    "signature": ""
+  }
+}
+
+--- FIN DU TEXTE DE PROMPT À DONNER À L’IA ---
+

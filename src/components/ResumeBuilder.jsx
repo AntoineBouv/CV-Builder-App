@@ -3,14 +3,35 @@ import { pdf, PDFDownloadLink } from "@react-pdf/renderer";
 import ResumePDF from "./ResumePDF";
 import CoverLetterPDF from "./CoverLetterPDF";
 import {
-  emptyPermanentData, emptyDynamicData, emptyCoverLetter,
-  loadPermanentData, savePermanentData,
-  buildCvForPdf, buildClForPdf, getMissingFields,
+  emptyPermanentData,
+  emptyDynamicData,
+  emptyCoverLetter,
+  loadPermanentData,
+  savePermanentData,
+  buildCvForPdf,
+  buildClForPdf,
+  getMissingFields,
 } from "../initialData";
 import {
-  mapJsonToDynamicData, mapJsonToPermanentData, mapJsonToCoverLetter,
-  EXAMPLE_JSON, EXAMPLE_PROFILE_JSON,
+  mapJsonToDynamicData,
+  mapJsonToPermanentData,
+  mapJsonToCoverLetter,
+  EXAMPLE_JSON,
+  EXAMPLE_PROFILE_JSON,
 } from "../jsonMapper";
+
+const EDUCATION_ONLY_EXAMPLE = `{
+  "education": [
+    {
+      "degree": "",
+      "school": "",
+      "location": "",
+      "start": "",
+      "end": "",
+      "description": ""
+    }
+  ]
+}`;
 
 /* ═══════════════════════════════════════════════
    Reusable form primitives
@@ -86,6 +107,27 @@ function EntryCard({ children, onRemove }) {
         </button>
       )}
       {children}
+    </div>
+  );
+}
+
+function JsonFormatHint({ label, example }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mt-1.5">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded-md border border-gray-300 text-gray-600 hover:bg-gray-100 transition"
+      >
+        <span className="text-[11px]">{}{"{"}{"}"}</span>
+        <span>Show JSON format example {label}</span>
+      </button>
+      {open && (
+        <pre className="mt-1 max-h-52 overflow-auto text-[11px] leading-snug bg-slate-900 text-slate-100 border border-slate-700 rounded-md p-2 whitespace-pre">
+{example}
+        </pre>
+      )}
     </div>
   );
 }
@@ -267,6 +309,8 @@ function PermanentProfileEditor({ data, setData, onSave, saveStatus }) {
             Exemple
           </button>
         </div>
+        <JsonFormatHint label="(profil complet)" example={EXAMPLE_PROFILE_JSON} />
+        <JsonFormatHint label="(education uniquement)" example={EDUCATION_ONLY_EXAMPLE} />
         {importStatus && (
           <div className={`mt-2 p-2 rounded-lg text-[11px] ${
             importStatus.ok ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-red-50 text-red-600 border border-red-200"
@@ -292,10 +336,50 @@ function PermanentProfileEditor({ data, setData, onSave, saveStatus }) {
             <button onClick={() => upd("photo", null)} className="text-[10px] text-red-400 hover:text-red-600">Suppr.</button>
           )}
         </div>
+        <div className="grid grid-cols-2 gap-3 mb-2">
+          <div>
+            <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-0.5">
+              Forme de la photo
+            </label>
+            <select
+              value={data.photoShape || "circle"}
+              onChange={(e) => upd("photoShape", e.target.value)}
+              className="w-full px-2 py-1.5 border border-gray-200 rounded-md text-xs bg-white focus:outline-none focus:ring-2 focus:ring-gray-800"
+            >
+              <option value="circle">Ronde</option>
+              <option value="square">Carrée</option>
+              <option value="rounded">Rectangle arrondi</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-0.5">
+              Taille de la photo
+            </label>
+            <input
+              type="range"
+              min={48}
+              max={120}
+              step={4}
+              value={data.photoSize || 72}
+              onChange={(e) => upd("photoSize", Number(e.target.value))}
+              className="w-full"
+            />
+            <div className="text-[10px] text-gray-500 mt-0.5">
+              {data.photoSize || 72} px
+            </div>
+          </div>
+        </div>
         <div className="grid grid-cols-2 gap-2">
           <Field label="Prenom *" value={data.firstName} onChange={(e) => upd("firstName", e.target.value)} />
           <Field label="Nom *" value={data.lastName} onChange={(e) => upd("lastName", e.target.value)} />
         </div>
+        <JsonFormatHint
+          label="(firstName / lastName)"
+          example={`{
+  "firstName": "",
+  "lastName": ""
+}`}
+        />
       </Section>
 
       {/* Contact */}
@@ -305,6 +389,16 @@ function PermanentProfileEditor({ data, setData, onSave, saveStatus }) {
         <Field label="Lieu" value={data.location} onChange={(e) => upd("location", e.target.value)} />
         <Field label="LinkedIn" value={data.linkedin} onChange={(e) => upd("linkedin", e.target.value)} />
         <Field label="Portfolio / GitHub" value={data.portfolio} onChange={(e) => upd("portfolio", e.target.value)} />
+        <JsonFormatHint
+          label="(contact)"
+          example={`{
+  "email": "",
+  "phone": "",
+  "location": "",
+  "linkedin": "",
+  "portfolio": ""
+}`}
+        />
       </Section>
 
       {/* Education */}
@@ -326,6 +420,7 @@ function PermanentProfileEditor({ data, setData, onSave, saveStatus }) {
             <FieldArea label="Description" value={edu.description} onChange={(e) => updEdu(edu.id, "description", e.target.value)} rows={2} />
           </EntryCard>
         ))}
+        <JsonFormatHint label="(education)" example={EDUCATION_ONLY_EXAMPLE} />
       </Section>
 
       {/* Languages */}
@@ -339,6 +434,14 @@ function PermanentProfileEditor({ data, setData, onSave, saveStatus }) {
             <button onClick={() => rmLang(i)} className="text-red-400 hover:text-red-600 text-[10px] px-1">X</button>
           </div>
         ))}
+        <JsonFormatHint
+          label="(languages)"
+          example={`{
+  "languages": [
+    { "language": "", "level": "" }
+  ]
+}`}
+        />
       </Section>
 
       {/* Certificates */}
@@ -350,6 +453,12 @@ function PermanentProfileEditor({ data, setData, onSave, saveStatus }) {
             <button onClick={() => rmCert(i)} className="text-red-400 hover:text-red-600 text-[10px] px-1">X</button>
           </div>
         ))}
+        <JsonFormatHint
+          label="(certificates)"
+          example={`{
+  "certificates": []
+}`}
+        />
       </Section>
 
       {/* Big Save Button */}
@@ -377,7 +486,7 @@ function PermanentProfileEditor({ data, setData, onSave, saveStatus }) {
    Onglet 2: CV Dynamique Editor
    ═══════════════════════════════════════════════ */
 
-function DynamicCVEditor({ data, setData }) {
+function DynamicCVEditor({ data, setData, fileNameBase, setFileNameBase }) {
   const upd = (key, val) => setData((p) => ({ ...p, [key]: val }));
 
   const addExp = () => setData((p) => ({ ...p, experience: [...p.experience, { id: Date.now(), jobTitle: "", company: "", location: "", startDate: "", endDate: "", description: "" }] }));
@@ -402,10 +511,22 @@ function DynamicCVEditor({ data, setData }) {
 
       <Section title="Titre du CV" defaultOpen={true}>
         <Field label="Titre / Headline *" value={data.title} onChange={(e) => upd("title", e.target.value)} placeholder="Ex: AI Engineer Intern" />
+        <JsonFormatHint
+          label="(title)"
+          example={`{
+  "title": ""
+}`}
+        />
       </Section>
 
       <Section title="Resume / Summary" defaultOpen={true}>
         <FieldArea label="Resume *" value={data.profile} onChange={(e) => upd("profile", e.target.value)} rows={4} placeholder="Votre resume professionnel adapte a cette offre..." />
+        <JsonFormatHint
+          label="(summary)"
+          example={`{
+  "summary": ""
+}`}
+        />
       </Section>
 
       <Section title="Experiences" onAdd={addExp} defaultOpen={true}>
@@ -426,6 +547,21 @@ function DynamicCVEditor({ data, setData }) {
             <FieldArea label="Description / Bullet points" value={exp.description} onChange={(e) => updExp(exp.id, "description", e.target.value)} rows={3} />
           </EntryCard>
         ))}
+        <JsonFormatHint
+          label="(experience)"
+          example={`{
+  "experience": [
+    {
+      "title": "",
+      "company": "",
+      "location": "",
+      "start": "",
+      "end": "",
+      "description": ""
+    }
+  ]
+}`}
+        />
       </Section>
 
       <Section title="Projets" onAdd={addProj} defaultOpen={true}>
@@ -439,6 +575,18 @@ function DynamicCVEditor({ data, setData }) {
             <FieldArea label="Description" value={p.description} onChange={(e) => updProj(p.id, "description", e.target.value)} rows={2} />
           </EntryCard>
         ))}
+        <JsonFormatHint
+          label="(projects)"
+          example={`{
+  "projects": [
+    {
+      "name": "",
+      "technologies": "",
+      "description": ""
+    }
+  ]
+}`}
+        />
       </Section>
 
       <Section title="Competences cles" onAdd={addSkill} defaultOpen={true}>
@@ -452,6 +600,24 @@ function DynamicCVEditor({ data, setData }) {
             <button onClick={() => rmSkill(i)} className="text-red-400 hover:text-red-600 text-[10px] px-1">X</button>
           </div>
         ))}
+        <JsonFormatHint
+          label="(skills)"
+          example={`{
+  "skills": []
+}`}
+        />
+      </Section>
+
+      <Section title="Nom du fichier CV" defaultOpen={true}>
+        <Field
+          label='Nom du fichier (sans ".pdf")'
+          value={fileNameBase}
+          onChange={(e) => setFileNameBase(e.target.value)}
+          placeholder="NOM-PRENOM-CV"
+        />
+        <p className="text-[10px] text-gray-400">
+          Ce nom sera utilise lors du telechargement du PDF du CV.
+        </p>
       </Section>
 
       {/* Reset button */}
@@ -471,7 +637,7 @@ function DynamicCVEditor({ data, setData }) {
    Onglet 3: Cover Letter Editor
    ═══════════════════════════════════════════════ */
 
-function CoverLetterEditor({ data, setData }) {
+function CoverLetterEditor({ data, setData, fileNameBase, setFileNameBase }) {
   const upd = (key, val) => setData((p) => ({ ...p, [key]: val }));
 
   return (
@@ -481,6 +647,23 @@ function CoverLetterEditor({ data, setData }) {
           Les informations de l'expediteur (nom, email, tel) sont recuperees automatiquement de votre <strong>Profil Permanent</strong>.
         </p>
       </div>
+
+      <JsonFormatHint
+        label="(coverLetter complet)"
+        example={`{
+  "coverLetter": {
+    "recipientName": "",
+    "recipientCompany": "",
+    "recipientAddress": "",
+    "date": "",
+    "subject": "",
+    "greeting": "",
+    "body": "",
+    "closing": "",
+    "signature": ""
+  }
+}`}
+      />
 
       <Section title="Destinataire" defaultOpen={true}>
         <Field label="Nom du destinataire" value={data.recipientName} onChange={(e) => upd("recipientName", e.target.value)} placeholder="M. / Mme ..." />
@@ -508,6 +691,18 @@ function CoverLetterEditor({ data, setData }) {
         <FieldArea label="Formule de politesse" value={data.closing} onChange={(e) => upd("closing", e.target.value)} rows={2} />
         <Field label="Signature (vide = nom du profil)" value={data.signature} onChange={(e) => upd("signature", e.target.value)} />
       </Section>
+
+      <Section title="Nom du fichier Lettre" defaultOpen={true}>
+        <Field
+          label='Nom du fichier (sans ".pdf")'
+          value={fileNameBase}
+          onChange={(e) => setFileNameBase(e.target.value)}
+          placeholder="NOM-PRENOM-MOTIVATION-LETTER"
+        />
+        <p className="text-[10px] text-gray-400">
+          Ce nom sera utilise lors du telechargement du PDF de la lettre de motivation.
+        </p>
+      </Section>
     </div>
   );
 }
@@ -520,6 +715,8 @@ export default function ResumeBuilder() {
   const [permData, setPermData] = useState(emptyPermanentData);
   const [dynData, setDynData] = useState(emptyDynamicData);
   const [clData, setClData] = useState(emptyCoverLetter);
+  const [cvFileBase, setCvFileBase] = useState("");
+  const [clFileBase, setClFileBase] = useState("");
   const [jsonText, setJsonText] = useState("");
   const [aiStatus, setAiStatus] = useState(null);
   const [activeTab, setActiveTab] = useState("profile");
@@ -538,6 +735,17 @@ export default function ResumeBuilder() {
     }
   }, []);
 
+  // Met à jour les suggestions de noms de fichiers en fonction du nom/prenom
+  useEffect(() => {
+    const ln = (permData.lastName || "").trim().toUpperCase();
+    const fn = (permData.firstName || "").trim().toUpperCase();
+    const baseName = ln || fn ? [ln, fn].filter(Boolean).join("-") : "DOCUMENT";
+    const suggestedCv = `${baseName}-CV`;
+    const suggestedCl = `${baseName}-MOTIVATION-LETTER`;
+    setCvFileBase((prev) => prev || suggestedCv);
+    setClFileBase((prev) => prev || suggestedCl);
+  }, [permData.firstName, permData.lastName]);
+
   // Save handler
   const handleSavePermanent = () => {
     savePermanentData(permData);
@@ -546,7 +754,7 @@ export default function ResumeBuilder() {
     setTimeout(() => setSaveStatus(null), 4000);
   };
 
-  // Auto-fill from header JSON (fills dynamicData + coverLetter only)
+  // Auto-fill from header JSON (remplit CV dynamique + lettre + éventuellement profil permanent)
   const handleAutoFill = () => {
     if (!jsonText.trim()) {
       setAiStatus({ ok: false, msg: "Collez un objet JSON d'abord." });
@@ -555,6 +763,7 @@ export default function ResumeBuilder() {
     try {
       const parts = [];
 
+      // 1) CV dynamique
       const mapped = mapJsonToDynamicData(jsonText);
       setDynData((prev) => {
         const m = { ...prev };
@@ -572,6 +781,7 @@ export default function ResumeBuilder() {
       if (mapped.skills.length) parts.push(`${mapped.skills.length} competence(s)`);
       if (mapped.projects.length) parts.push(`${mapped.projects.length} projet(s)`);
 
+      // 2) Lettre de motivation
       const clMapped = mapJsonToCoverLetter(jsonText);
       const hasClData = Object.values(clMapped).some((v) => v);
       if (hasClData) {
@@ -581,6 +791,27 @@ export default function ResumeBuilder() {
           return updated;
         });
         parts.push("Lettre de motivation");
+      }
+
+      // 3) Profil permanent (optionnel, si le JSON contient aussi ces infos)
+      const permMapped = mapJsonToPermanentData(jsonText);
+      const hasPermData = Object.entries(permMapped).some(([_, v]) => {
+        if (v == null) return false;
+        if (Array.isArray(v)) return v.length > 0;
+        if (typeof v === "string") return v.trim().length > 0;
+        return false;
+      });
+      if (hasPermData) {
+        setPermData((prev) => {
+          const updated = { ...prev };
+          Object.entries(permMapped).forEach(([k, v]) => {
+            if (v == null) return;
+            if (Array.isArray(v) && v.length) updated[k] = v;
+            else if (typeof v === "string" && v) updated[k] = v;
+          });
+          return updated;
+        });
+        parts.unshift("Profil permanent");
       }
 
       setAiStatus({
@@ -603,9 +834,11 @@ export default function ResumeBuilder() {
 
   const showingCv = activeTab === "profile" || activeTab === "cv";
   const currentPdfDoc = showingCv ? <ResumePDF data={cvForPdf} /> : <CoverLetterPDF data={clForPdf} />;
-  const downloadFileName = showingCv
-    ? `${permData.firstName || "CV"}_${permData.lastName || ""}_CV.pdf`.replace(/\s+/g, "_")
-    : `${permData.firstName || "Lettre"}_${permData.lastName || ""}_Lettre_Motivation.pdf`.replace(/\s+/g, "_");
+  const defaultCvBase = cvFileBase || "CV";
+  const defaultClBase = clFileBase || "MOTIVATION-LETTER";
+  const safeCv = defaultCvBase.replace(/\s+/g, "-");
+  const safeCl = defaultClBase.replace(/\s+/g, "-");
+  const downloadFileName = showingCv ? `${safeCv}.pdf` : `${safeCl}.pdf`;
 
   return (
     <div className="flex flex-col h-screen bg-slate-100">
@@ -654,6 +887,8 @@ export default function ResumeBuilder() {
               </button>
             </div>
           </div>
+
+          <JsonFormatHint label="(CV dynamique + lettre)" example={EXAMPLE_JSON} />
 
           {aiStatus && (
             <div className={`mt-2 p-2.5 rounded-lg text-[11px] leading-relaxed ${
@@ -743,10 +978,20 @@ export default function ResumeBuilder() {
             />
           )}
           {activeTab === "cv" && (
-            <DynamicCVEditor data={dynData} setData={setDynData} />
+            <DynamicCVEditor
+              data={dynData}
+              setData={setDynData}
+              fileNameBase={cvFileBase}
+              setFileNameBase={setCvFileBase}
+            />
           )}
           {activeTab === "cl" && (
-            <CoverLetterEditor data={clData} setData={setClData} />
+            <CoverLetterEditor
+              data={clData}
+              setData={setClData}
+              fileNameBase={clFileBase}
+              setFileNameBase={setClFileBase}
+            />
           )}
         </div>
 

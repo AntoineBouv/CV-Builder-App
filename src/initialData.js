@@ -9,6 +9,8 @@ export const emptyPermanentData = {
   portfolio: "",
   location: "",
   photo: null,
+  photoShape: "circle",
+  photoSize: 72,
   education: [],
   languages: [],
   certificates: [],

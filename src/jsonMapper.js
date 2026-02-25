@@ -269,60 +269,59 @@ export function mapJsonToCoverLetter(json) {
 }
 
 export const EXAMPLE_JSON = `{
-  "title": "AI Engineer Intern",
-  "summary": "Passionate AI engineering student with hands-on ML experience in production environments.",
+  "title": "",
+  "summary": "",
   "experience": [
     {
-      "title": "ML Engineer Intern",
-      "company": "TechCorp",
-      "location": "Paris",
-      "start": "2025-06",
-      "end": "2025-12",
-      "description": "Built ML pipelines for real-time inference. Deployed models with Docker/K8s. Reduced inference latency by 40%."
+      "title": "",
+      "company": "",
+      "location": "",
+      "start": "",
+      "end": "",
+      "description": ""
     }
   ],
-  "skills": ["Python", "TensorFlow", "PyTorch", "Docker", "SQL", "AWS", "scikit-learn"],
+  "skills": [],
   "projects": [
     {
-      "name": "Real-time Threat Detector",
-      "technologies": "Python, YOLO, OpenCV",
-      "description": "Built a computer vision pipeline for real-time threat detection with 95% accuracy."
+      "name": "",
+      "technologies": "",
+      "description": ""
     }
   ],
   "coverLetter": {
-    "recipientCompany": "TechCorp",
-    "recipientName": "M. Dupont",
-    "subject": "Candidature - Stage AI Engineer",
-    "body": "Je me permets de vous adresser ma candidature pour le poste de stagiaire AI Engineer. Mon experience en Machine Learning et Data Engineering fait de moi un candidat operationnel.",
-    "closing": "Dans l'attente de votre retour, je vous prie d'agreer mes salutations distinguees."
+    "recipientCompany": "",
+    "recipientName": "",
+    "recipientAddress": "",
+    "date": "",
+    "subject": "",
+    "greeting": "",
+    "body": "",
+    "closing": "",
+    "signature": ""
   }
 }`;
 
 export const EXAMPLE_PROFILE_JSON = `{
-  "firstName": "Antoine",
-  "lastName": "Bouveret",
-  "email": "abouveret9@gmail.com",
-  "phone": "+33 6 XX XX XX XX",
-  "linkedin": "linkedin.com/in/antoine-bouveret",
-  "portfolio": "github.com/antoinebouveret",
-  "location": "Paris, France",
+  "firstName": "",
+  "lastName": "",
+  "email": "",
+  "phone": "",
+  "linkedin": "",
+  "portfolio": "",
+  "location": "",
   "education": [
     {
-      "degree": "Master of Engineering - Defense & Security Technologies",
-      "school": "ECE Paris",
-      "location": "Paris, France",
-      "start": "2021",
-      "end": "2026",
-      "description": "Specialization in AI, Machine Learning, and Cybersecurity."
+      "degree": "",
+      "school": "",
+      "location": "",
+      "start": "",
+      "end": "",
+      "description": ""
     }
   ],
   "languages": [
-    { "language": "French", "level": "Native" },
-    { "language": "English", "level": "Fluent (C1)" },
-    { "language": "Turkish", "level": "Intermediate (B1)" }
+    { "language": "", "level": "" }
   ],
-  "certificates": [
-    "Google Data Analytics Professional Certificate",
-    "Machine Learning Specialization - Stanford Online"
-  ]
+  "certificates": []
 }`;

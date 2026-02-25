@@ -38,8 +38,12 @@ const s = StyleSheet.create({
   photoWrap: { alignItems: "center", marginBottom: 14 },
   photo: { width: 72, height: 72, borderRadius: 36, objectFit: "cover" },
   photoPlaceholder: {
-    width: 72, height: 72, borderRadius: 36,
-    backgroundColor: C.line, alignItems: "center", justifyContent: "center",
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: C.line,
+    alignItems: "center",
+    justifyContent: "center",
   },
   initials: { fontSize: 22, color: C.medGray, fontFamily: "Helvetica-Bold" },
 
@@ -119,6 +123,16 @@ function MainSection({ title, children }) {
 export default function ResumePDF({ data }) {
   const { personalInfo, contact, profile, experience, education, skills, languages, certificates, projects } = data;
   const initials = (personalInfo.firstName?.[0] || "") + (personalInfo.lastName?.[0] || "");
+  const photoSize = personalInfo.photoSize || 72;
+  const shape = personalInfo.photoShape || "circle";
+  const radius =
+    shape === "square"
+      ? 4
+      : shape === "rounded"
+      ? 12
+      : photoSize / 2;
+  const photoStyle = [{ ...s.photo, width: photoSize, height: photoSize, borderRadius: radius }];
+  const placeholderStyle = [{ ...s.photoPlaceholder, width: photoSize, height: photoSize, borderRadius: radius }];
 
   return (
     <Document>
@@ -126,9 +140,9 @@ export default function ResumePDF({ data }) {
         <View style={s.sidebar}>
           <View style={s.photoWrap}>
             {personalInfo.photo ? (
-              <Image style={s.photo} src={personalInfo.photo} />
+              <Image style={photoStyle} src={personalInfo.photo} />
             ) : (
-              <View style={s.photoPlaceholder}>
+              <View style={placeholderStyle}>
                 <Text style={s.initials}>{initials}</Text>
               </View>
             )}
