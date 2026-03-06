@@ -1,6 +1,8 @@
 import { Buffer } from 'buffer';
 globalThis.Buffer = Buffer;
 
+import "./i18n";
+
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'

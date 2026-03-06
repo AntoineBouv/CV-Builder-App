@@ -1,0 +1,89 @@
+{
+  "app": {
+    "title": "Internship Application Builder",
+    "subtitle": "CV + Lettre de motivation - Auto-Fill intelligent",
+    "atsReady": "ATS-Ready",
+    "localStorage": "localStorage"
+  },
+  "jsonZone": {
+    "label": "Coller le JSON de l'Internships Assistant ici",
+    "autoFill": "Auto-Fill Magique",
+    "loadExample": "Charger un exemple"
+  },
+  "tabs": {
+    "profile": "Profil Permanent",
+    "cv": "CV Dynamique",
+    "coverLetter": "Lettre de Motivation",
+    "recommendation": "Lettre de Recommandation"
+  },
+  "actions": {
+    "downloadPdf": "Télécharger PDF",
+    "exportProfile": "Exporter mon profil",
+    "importProfile": "Importer un profil",
+    "saveBrowser": "Sauvegarder dans le navigateur",
+    "help": "Aide"
+  },
+  "boxes": {
+    "profileJsonTitle": "Importer Profil JSON",
+    "profileJsonPlaceholder": "Collez ici un JSON avec vos infos de base :\n{\"firstName\":\"...\",\"lastName\":\"...\",\"email\":\"...\",...}",
+    "profileImportBtn": "Importer et remplir",
+    "profileExample": "Exemple",
+    "profileImportError": "Collez un JSON d'abord.",
+    "profileImportSuccess": "Profil importé avec succès. Vérifiez les champs puis sauvegardez.",
+    "profileImportInvalid": "JSON invalide : {{error}}",
+    "cvIntro": "Ces champs sont spécifiques à chaque candidature. Utilisez le bouton « Auto-Fill Magique » en haut pour les remplir automatiquement depuis un JSON, ou éditez-les manuellement.",
+    "coverLetterIntro": "Les informations de l'expéditeur (nom, email, tél.) sont récupérées automatiquement de votre Profil Permanent.",
+    "recommendationIntro": "Lettre de recommandation (ex. de la part d'un professeur ou d'un ancien employeur). Le nom du candidat peut être complété depuis le profil.",
+    "welcomeTitle": "Bienvenue !",
+    "welcomeText": "Veuillez configurer votre profil de base ci-dessous (nom, email, formation…). Ces données seront sauvegardées dans votre navigateur et réutilisées pour toutes vos candidatures.",
+    "recommendationJsonLabel": "Exemple JSON lettre de recommandation",
+    "recommendationJsonHint": "(lettre de recommandation)"
+  },
+  "missingFields": {
+    "allDone": "Tous les champs requis sont remplis",
+    "label": "Champs requis manquants :"
+  },
+  "sections": {
+    "orderPdf": "Ordre des sections dans le PDF",
+    "summary": "Profil / Résumé",
+    "experience": "Expériences",
+    "education": "Formation",
+    "projects": "Projets",
+    "skills": "Compétences",
+    "template": "Choix du Template"
+  },
+  "template": {
+    "flowcv": "FlowCV (2 colonnes)",
+    "classic": "Classique (académique)",
+    "modern": "Moderne (barre accent)",
+    "minimal": "Minimal (épuré)",
+    "executive": "Executive (2 colonnes compact)",
+    "stanford": "Stanford (académique type BetterCV)"
+  },
+  "preview": {
+    "cv": "Preview CV",
+    "coverLetter": "Preview Lettre de Motivation",
+    "recommendation": "Preview Lettre de Recommandation",
+    "atsFriendly": "ATS-Friendly",
+    "selectable": "Sélectionnable"
+  },
+  "aiOptions": {
+    "title": "Options de l'IA",
+    "targetLanguage": "Langue cible du CV",
+    "targetLanguageFr": "Français",
+    "targetLanguageEn": "Traduire en Anglais",
+    "length": "Longueur souhaitée",
+    "lengthShort": "Concis / 1 page max",
+    "lengthDetailed": "Détaillé"
+  },
+  "onboarding": {
+    "step1Title": "Zone JSON",
+    "step1Content": "Collez ici le code généré par votre Assistant IA, puis cliquez sur Auto-Fill Magique.",
+    "step2Title": "Formulaire",
+    "step2Content": "Modifiez le texte manuellement ici ou réorganisez l'ordre des sections par glisser-déposer.",
+    "step3Title": "Template",
+    "step3Content": "Changez le design du CV en un clic (FlowCV ou Classique).",
+    "step4Title": "Téléchargement",
+    "step4Content": "Téléchargez votre CV ou lettre optimisé(e) en PDF."
+  }
+}

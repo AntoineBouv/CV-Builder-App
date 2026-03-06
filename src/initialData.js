@@ -40,6 +40,20 @@ export const emptyCoverLetter = {
   signature: "",
 };
 
+export const emptyRecommendationLetter = {
+  recommenderName: "",
+  recommenderTitle: "",
+  candidateName: "",
+  targetCompany: "",
+  body: "",
+};
+
+/** Order of main sections in the CV PDF. Sidebar (contact, languages, certs) is fixed. */
+export const DEFAULT_SECTION_ORDER = ["summary", "experience", "education", "projects", "skills"];
+
+/** CV template id for PDF layout. */
+export const DEFAULT_CV_TEMPLATE = "flowcv";
+
 export function loadPermanentData() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -62,6 +76,8 @@ export function buildCvForPdf(perm, dyn) {
       lastName: perm.lastName,
       title: dyn.title,
       photo: perm.photo,
+      photoShape: perm.photoShape,
+      photoSize: perm.photoSize,
     },
     contact: {
       email: perm.email,
@@ -88,6 +104,16 @@ export function buildClForPdf(perm, cl) {
     senderPhone: perm.phone,
     ...cl,
     signature: cl.signature || `${perm.firstName} ${perm.lastName}`.trim(),
+  };
+}
+
+export function buildRecommendationForPdf(perm, rec) {
+  return {
+    recommenderName: rec.recommenderName,
+    recommenderTitle: rec.recommenderTitle,
+    candidateName: rec.candidateName || `${perm.firstName} ${perm.lastName}`.trim(),
+    targetCompany: rec.targetCompany,
+    body: rec.body,
   };
 }
 

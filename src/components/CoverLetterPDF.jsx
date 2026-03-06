@@ -34,14 +34,26 @@ const s = StyleSheet.create({
   },
   senderBlock: { maxWidth: "45%" },
   recipientBlock: { maxWidth: "45%", alignItems: "flex-end" },
-  headerName: { fontSize: 12, fontFamily: "Helvetica-Bold", color: C.accent, marginBottom: 2 },
-  headerLine: { fontSize: 9, color: C.gray, marginBottom: 1.5 },
+  headerName: {
+    fontSize: 12,
+    fontFamily: "Helvetica-Bold",
+    color: C.accent,
+    marginBottom: 2,
+    flexWrap: "wrap",
+  },
+  headerLine: {
+    fontSize: 9,
+    color: C.gray,
+    marginBottom: 1.5,
+    flexWrap: "wrap",
+  },
 
   dateLine: {
     fontSize: 9.5,
     color: C.medGray,
     textAlign: "right",
     marginBottom: 22,
+    flexWrap: "wrap",
   },
 
   subjectLine: {
@@ -52,12 +64,14 @@ const s = StyleSheet.create({
     paddingBottom: 8,
     borderBottomWidth: 0.75,
     borderBottomColor: C.line,
+    flexWrap: "wrap",
   },
 
   greeting: {
     fontSize: 10,
     color: C.dark,
     marginBottom: 14,
+    flexWrap: "wrap",
   },
 
   bodyText: {
@@ -66,6 +80,7 @@ const s = StyleSheet.create({
     lineHeight: 1.65,
     textAlign: "justify",
     marginBottom: 10,
+    flexWrap: "wrap",
   },
 
   closing: {
@@ -74,12 +89,14 @@ const s = StyleSheet.create({
     marginTop: 14,
     marginBottom: 28,
     lineHeight: 1.55,
+    flexWrap: "wrap",
   },
 
   signature: {
     fontSize: 11,
     fontFamily: "Helvetica-Bold",
     color: C.accent,
+    flexWrap: "wrap",
   },
 });
 

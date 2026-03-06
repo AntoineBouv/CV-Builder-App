@@ -1,16 +1,39 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
+import { useTranslation } from "react-i18next";
+import Joyride from "react-joyride";
 import { pdf, PDFDownloadLink } from "@react-pdf/renderer";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import ResumePDF from "./ResumePDF";
 import CoverLetterPDF from "./CoverLetterPDF";
+import RecommendationPDF from "./RecommendationPDF";
 import {
   emptyPermanentData,
   emptyDynamicData,
   emptyCoverLetter,
+  emptyRecommendationLetter,
   loadPermanentData,
   savePermanentData,
   buildCvForPdf,
   buildClForPdf,
+  buildRecommendationForPdf,
   getMissingFields,
+  DEFAULT_SECTION_ORDER,
+  DEFAULT_CV_TEMPLATE,
 } from "../initialData";
 import {
   mapJsonToDynamicData,
@@ -19,6 +42,8 @@ import {
   EXAMPLE_JSON,
   EXAMPLE_PROFILE_JSON,
 } from "../jsonMapper";
+import AuthHeader from "./AuthHeader";
+import { supabase } from "../lib/supabaseClient";
 
 const EDUCATION_ONLY_EXAMPLE = `{
   "education": [
@@ -31,6 +56,14 @@ const EDUCATION_ONLY_EXAMPLE = `{
       "description": ""
     }
   ]
+}`;
+
+const EXAMPLE_RECOMMENDATION_JSON = `{
+  "recommenderName": "Dr. Jean Dupont",
+  "recommenderTitle": "Professeur des Universités, Responsable du Master IA",
+  "candidateName": "Marie Martin",
+  "targetCompany": "TechCorp",
+  "body": "Je suis ravi de recommander chaleureusement Marie Martin pour le poste au sein de votre entreprise.\\n\\nEn tant que responsable de son cursus, j'ai pu apprécier sa rigueur, sa curiosité et sa capacité à mener des projets en équipe.\\n\\nJe ne doute pas qu'elle saura s'intégrer avec succès dans votre structure."
 }`;
 
 /* ═══════════════════════════════════════════════
@@ -132,6 +165,83 @@ function JsonFormatHint({ label, example }) {
   );
 }
 
+function SortableSectionItem({ id }) {
+  const { t } = useTranslation();
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`flex items-center gap-2 py-2 px-2.5 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-700 ${
+        isDragging ? "opacity-80 shadow-md z-10" : ""
+      }`}
+    >
+      <button
+        type="button"
+        className="p-1 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 cursor-grab active:cursor-grabbing touch-none"
+        {...attributes}
+        {...listeners}
+        aria-label="Réordonner"
+      >
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+        </svg>
+      </button>
+      <span>{t(`sections.${id}`) || id}</span>
+    </div>
+  );
+}
+
+function SectionOrderSortable({ sectionOrder, setSectionOrder }) {
+  const order = Array.isArray(sectionOrder) && sectionOrder.length
+    ? [...sectionOrder]
+    : [...DEFAULT_SECTION_ORDER];
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+  const handleDragEnd = (event) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      setSectionOrder((prev) => {
+        const list = Array.isArray(prev) && prev.length ? [...prev] : [...DEFAULT_SECTION_ORDER];
+        const oldIndex = list.indexOf(active.id);
+        const newIndex = list.indexOf(over.id);
+        if (oldIndex === -1 || newIndex === -1) return prev;
+        return arrayMove(list, oldIndex, newIndex);
+      });
+    }
+  };
+  const { t } = useTranslation();
+  return (
+    <div className="mb-3">
+      <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">
+        {t("sections.orderPdf")}
+      </label>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <SortableContext items={order} strategy={verticalListSortingStrategy}>
+          <div className="flex flex-col gap-1">
+            {order.map((id) => (
+              <SortableSectionItem key={id} id={id} />
+            ))}
+          </div>
+        </SortableContext>
+      </DndContext>
+    </div>
+  );
+}
+
 /* ═══════════════════════════════════════════════
    PDF Preview (blob-based, debounced)
    ═══════════════════════════════════════════════ */
@@ -197,13 +307,14 @@ function PDFPreview({ document: pdfDoc }) {
    ═══════════════════════════════════════════════ */
 
 function MissingFieldsAlert({ missing }) {
+  const { t } = useTranslation();
   if (!missing.length) {
     return (
       <div className="px-4 py-2 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center gap-2">
         <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
         </svg>
-        <span className="text-emerald-700 text-xs font-medium">Tous les champs requis sont remplis</span>
+        <span className="text-emerald-700 text-xs font-medium">{t("missingFields.allDone")}</span>
       </div>
     );
   }
@@ -214,7 +325,7 @@ function MissingFieldsAlert({ missing }) {
         <svg className="w-4 h-4 text-red-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
         </svg>
-        <span className="text-red-700 text-xs font-bold">Champs requis manquants :</span>
+        <span className="text-red-700 text-xs font-bold">{t("missingFields.label")}</span>
       </div>
       <div className="flex flex-wrap gap-1.5 ml-6">
         {missing.map((f) => (
@@ -230,6 +341,7 @@ function MissingFieldsAlert({ missing }) {
    ═══════════════════════════════════════════════ */
 
 function PermanentProfileEditor({ data, setData, onSave, saveStatus }) {
+  const { t } = useTranslation();
   const [importJson, setImportJson] = useState("");
   const [importStatus, setImportStatus] = useState(null);
 
@@ -262,7 +374,7 @@ function PermanentProfileEditor({ data, setData, onSave, saveStatus }) {
   };
 
   const handleImportJson = () => {
-    if (!importJson.trim()) { setImportStatus({ ok: false, msg: "Collez un JSON d'abord." }); return; }
+    if (!importJson.trim()) { setImportStatus({ ok: false, msg: t("boxes.profileImportError") }); return; }
     try {
       const mapped = mapJsonToPermanentData(importJson);
       setData((prev) => {
@@ -274,9 +386,9 @@ function PermanentProfileEditor({ data, setData, onSave, saveStatus }) {
         });
         return updated;
       });
-      setImportStatus({ ok: true, msg: "Profil importe avec succes. Verifiez les champs puis sauvegardez." });
+      setImportStatus({ ok: true, msg: t("boxes.profileImportSuccess") });
     } catch (e) {
-      setImportStatus({ ok: false, msg: `JSON invalide : ${e.message}` });
+      setImportStatus({ ok: false, msg: t("boxes.profileImportInvalid", { error: e.message }) });
     }
   };
 
@@ -285,14 +397,14 @@ function PermanentProfileEditor({ data, setData, onSave, saveStatus }) {
       {/* JSON Import zone */}
       <div className="mt-4 mb-2 p-4 bg-blue-50 border border-blue-200 rounded-xl">
         <label className="block text-[11px] font-bold text-blue-800 uppercase tracking-wider mb-2">
-          Importer Profil JSON
+          {t("boxes.profileJsonTitle")}
         </label>
         <textarea
           value={importJson}
           onChange={(e) => { setImportJson(e.target.value); setImportStatus(null); }}
           rows={4}
           spellCheck={false}
-          placeholder={`Collez ici un JSON avec vos infos de base :\n{"firstName":"...","lastName":"...","email":"...",...}`}
+          placeholder={t("boxes.profileJsonPlaceholder")}
           className="w-full px-3 py-2 bg-white border border-blue-200 rounded-lg text-[11px] font-mono leading-relaxed focus:outline-none focus:ring-2 focus:ring-blue-400 transition resize-vertical"
         />
         <div className="flex gap-2 mt-2">
@@ -300,13 +412,13 @@ function PermanentProfileEditor({ data, setData, onSave, saveStatus }) {
             onClick={handleImportJson}
             className="flex-1 bg-blue-600 text-white py-2 rounded-lg font-medium text-xs hover:bg-blue-700 transition"
           >
-            Importer et remplir
+            {t("boxes.profileImportBtn")}
           </button>
           <button
             onClick={() => { setImportJson(EXAMPLE_PROFILE_JSON); setImportStatus(null); }}
             className="px-3 py-2 bg-blue-100 text-blue-600 rounded-lg text-[10px] hover:bg-blue-200 transition font-medium"
           >
-            Exemple
+            {t("boxes.profileExample")}
           </button>
         </div>
         <JsonFormatHint label="(profil complet)" example={EXAMPLE_PROFILE_JSON} />
@@ -470,7 +582,7 @@ function PermanentProfileEditor({ data, setData, onSave, saveStatus }) {
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
           </svg>
-          Sauvegarder dans le navigateur
+          {t("actions.saveBrowser")}
         </button>
         {saveStatus && (
           <div className={`mt-2 p-2.5 rounded-lg text-xs text-center font-medium ${
@@ -486,7 +598,8 @@ function PermanentProfileEditor({ data, setData, onSave, saveStatus }) {
    Onglet 2: CV Dynamique Editor
    ═══════════════════════════════════════════════ */
 
-function DynamicCVEditor({ data, setData, fileNameBase, setFileNameBase }) {
+function DynamicCVEditor({ data, setData, fileNameBase, setFileNameBase, sectionOrder, setSectionOrder, selectedTemplate, setSelectedTemplate }) {
+  const { t } = useTranslation();
   const upd = (key, val) => setData((p) => ({ ...p, [key]: val }));
 
   const addExp = () => setData((p) => ({ ...p, experience: [...p.experience, { id: Date.now(), jobTitle: "", company: "", location: "", startDate: "", endDate: "", description: "" }] }));
@@ -505,9 +618,31 @@ function DynamicCVEditor({ data, setData, fileNameBase, setFileNameBase }) {
     <div className="px-5 pb-4">
       <div className="mt-4 mb-2 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
         <p className="text-[11px] text-amber-800 leading-relaxed">
-          Ces champs sont specifiques a chaque candidature. Utilisez le bouton <strong>"Auto-Fill Magique"</strong> en haut pour les remplir automatiquement depuis un JSON, ou editez-les manuellement.
+          {t("boxes.cvIntro")}
         </p>
       </div>
+
+      <Section title={t("sections.template")} defaultOpen={true}>
+        <div className="mb-2.5" data-tour="template-selector">
+          <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">{t("sections.template")}</label>
+          <select
+            value={selectedTemplate || "flowcv"}
+            onChange={(e) => setSelectedTemplate(e.target.value)}
+            className="w-full px-2.5 py-1.5 border border-gray-200 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-800"
+          >
+            <option value="flowcv">{t("template.flowcv")}</option>
+            <option value="classic">{t("template.classic")}</option>
+            <option value="modern">{t("template.modern")}</option>
+            <option value="minimal">{t("template.minimal")}</option>
+            <option value="executive">{t("template.executive")}</option>
+            <option value="stanford">{t("template.stanford")}</option>
+          </select>
+        </div>
+      </Section>
+
+      <Section title={t("sections.orderPdf")} defaultOpen={true}>
+        <SectionOrderSortable sectionOrder={sectionOrder} setSectionOrder={setSectionOrder} />
+      </Section>
 
       <Section title="Titre du CV" defaultOpen={true}>
         <Field label="Titre / Headline *" value={data.title} onChange={(e) => upd("title", e.target.value)} placeholder="Ex: AI Engineer Intern" />
@@ -638,13 +773,14 @@ function DynamicCVEditor({ data, setData, fileNameBase, setFileNameBase }) {
    ═══════════════════════════════════════════════ */
 
 function CoverLetterEditor({ data, setData, fileNameBase, setFileNameBase }) {
+  const { t } = useTranslation();
   const upd = (key, val) => setData((p) => ({ ...p, [key]: val }));
 
   return (
     <div className="px-5 pb-4">
       <div className="mt-4 mb-2 px-4 py-3 bg-violet-50 border border-violet-200 rounded-xl">
         <p className="text-[11px] text-violet-800 leading-relaxed">
-          Les informations de l'expediteur (nom, email, tel) sont recuperees automatiquement de votre <strong>Profil Permanent</strong>.
+          {t("boxes.coverLetterIntro")}
         </p>
       </div>
 
@@ -708,6 +844,96 @@ function CoverLetterEditor({ data, setData, fileNameBase, setFileNameBase }) {
 }
 
 /* ═══════════════════════════════════════════════
+   Onglet 4: Recommendation Letter Editor
+   ═══════════════════════════════════════════════ */
+
+function RecommendationEditor({ data, setData, fileNameBase, setFileNameBase }) {
+  const { t } = useTranslation();
+  const upd = (key, val) => setData((p) => ({ ...p, [key]: val }));
+
+  return (
+    <div className="px-5 pb-4">
+      <div className="mt-4 mb-2 px-4 py-3 bg-teal-50 border border-teal-200 rounded-xl">
+        <p className="text-[11px] text-teal-800 leading-relaxed">
+          {t("boxes.recommendationIntro")}
+        </p>
+      </div>
+
+      <div className="mt-2 mb-3 p-3 bg-teal-50/80 border border-teal-200 rounded-lg">
+        <label className="block text-[10px] font-bold text-teal-800 uppercase tracking-wider mb-1.5">
+          {t("boxes.recommendationJsonLabel")}
+        </label>
+        <JsonFormatHint label={t("boxes.recommendationJsonHint")} example={EXAMPLE_RECOMMENDATION_JSON} />
+        <button
+          type="button"
+          onClick={() => {
+            try {
+              const parsed = JSON.parse(EXAMPLE_RECOMMENDATION_JSON);
+              setData((prev) => ({ ...prev, ...parsed }));
+            } catch (_) {}
+          }}
+          className="mt-2 px-3 py-1.5 bg-teal-600 text-white rounded-lg text-[10px] font-medium hover:bg-teal-700 transition"
+        >
+          {t("boxes.profileExample")}
+        </button>
+      </div>
+
+      <Section title="Recommandeur" defaultOpen={true}>
+        <Field
+          label="Nom du recommandeur"
+          value={data.recommenderName}
+          onChange={(e) => upd("recommenderName", e.target.value)}
+          placeholder="Dr. Jean Dupont"
+        />
+        <Field
+          label="Titre du recommandeur"
+          value={data.recommenderTitle}
+          onChange={(e) => upd("recommenderTitle", e.target.value)}
+          placeholder="Professeur, Responsable RH..."
+        />
+      </Section>
+
+      <Section title="Candidat et entreprise cible" defaultOpen={true}>
+        <Field
+          label="Nom du candidat"
+          value={data.candidateName}
+          onChange={(e) => upd("candidateName", e.target.value)}
+          placeholder="Vide = nom du profil permanent"
+        />
+        <Field
+          label="Entreprise cible"
+          value={data.targetCompany}
+          onChange={(e) => upd("targetCompany", e.target.value)}
+          placeholder="Entreprise pour laquelle la lettre est destinee"
+        />
+      </Section>
+
+      <Section title="Corps de la lettre" defaultOpen={true}>
+        <FieldArea
+          label="Texte (paragraphes separes par des sauts de ligne)"
+          value={data.body}
+          onChange={(e) => upd("body", e.target.value)}
+          rows={12}
+          placeholder="Redigez la lettre de recommandation..."
+        />
+      </Section>
+
+      <Section title="Nom du fichier" defaultOpen={true}>
+        <Field
+          label='Nom du fichier (sans ".pdf")'
+          value={fileNameBase}
+          onChange={(e) => setFileNameBase(e.target.value)}
+          placeholder="Prenom_Nom_Lettre_Recommandation"
+        />
+        <p className="text-[10px] text-gray-400">
+          Utilise pour le telechargement du PDF.
+        </p>
+      </Section>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════
    MAIN APPLICATION COMPONENT
    ═══════════════════════════════════════════════ */
 
@@ -715,13 +941,35 @@ export default function ResumeBuilder() {
   const [permData, setPermData] = useState(emptyPermanentData);
   const [dynData, setDynData] = useState(emptyDynamicData);
   const [clData, setClData] = useState(emptyCoverLetter);
+  const [recData, setRecData] = useState(emptyRecommendationLetter);
   const [cvFileBase, setCvFileBase] = useState("");
   const [clFileBase, setClFileBase] = useState("");
+  const [recFileBase, setRecFileBase] = useState("");
+  const [sectionOrder, setSectionOrder] = useState([...DEFAULT_SECTION_ORDER]);
+  const [selectedTemplate, setSelectedTemplate] = useState(DEFAULT_CV_TEMPLATE);
+  const [aiOptions, setAiOptions] = useState({ targetLanguage: "fr", length: "concis" });
   const [jsonText, setJsonText] = useState("");
   const [aiStatus, setAiStatus] = useState(null);
   const [activeTab, setActiveTab] = useState("profile");
   const [isFirstTime, setIsFirstTime] = useState(false);
   const [saveStatus, setSaveStatus] = useState(null);
+  const [runOnboarding, setRunOnboarding] = useState(false);
+  const [user, setUser] = useState(null);
+  const [cloudStatus, setCloudStatus] = useState(null); // { ok: boolean, msg: string }
+  const [cloudLoading, setCloudLoading] = useState(false);
+  const profileFileInputRef = useRef(null);
+  const { t, i18n } = useTranslation();
+
+  // Sync auth state for Cloud save/load visibility
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
 
   // Load permanentData from localStorage on mount
   useEffect(() => {
@@ -735,16 +983,15 @@ export default function ResumeBuilder() {
     }
   }, []);
 
-  // Met à jour les suggestions de noms de fichiers en fonction du nom/prenom
+  // Onboarding: run once per device; show CV tab so template selector is visible for step 3
   useEffect(() => {
-    const ln = (permData.lastName || "").trim().toUpperCase();
-    const fn = (permData.firstName || "").trim().toUpperCase();
-    const baseName = ln || fn ? [ln, fn].filter(Boolean).join("-") : "DOCUMENT";
-    const suggestedCv = `${baseName}-CV`;
-    const suggestedCl = `${baseName}-MOTIVATION-LETTER`;
-    setCvFileBase((prev) => prev || suggestedCv);
-    setClFileBase((prev) => prev || suggestedCl);
-  }, [permData.firstName, permData.lastName]);
+    if (localStorage.getItem("cv-builder-onboarding-done")) return;
+    const timer = setTimeout(() => {
+      setActiveTab("cv");
+      setRunOnboarding(true);
+    }, 800);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Save handler
   const handleSavePermanent = () => {
@@ -830,38 +1077,264 @@ export default function ResumeBuilder() {
   // Build merged data for PDF rendering
   const cvForPdf = useMemo(() => buildCvForPdf(permData, dynData), [permData, dynData]);
   const clForPdf = useMemo(() => buildClForPdf(permData, clData), [permData, clData]);
+  const recForPdf = useMemo(() => buildRecommendationForPdf(permData, recData), [permData, recData]);
   const missing = useMemo(() => getMissingFields(permData, dynData), [permData, dynData]);
 
   const showingCv = activeTab === "profile" || activeTab === "cv";
-  const currentPdfDoc = showingCv ? <ResumePDF data={cvForPdf} /> : <CoverLetterPDF data={clForPdf} />;
-  const defaultCvBase = cvFileBase || "CV";
-  const defaultClBase = clFileBase || "MOTIVATION-LETTER";
-  const safeCv = defaultCvBase.replace(/\s+/g, "-");
-  const safeCl = defaultClBase.replace(/\s+/g, "-");
-  const downloadFileName = showingCv ? `${safeCv}.pdf` : `${safeCl}.pdf`;
+  const showingRec = activeTab === "recommendation";
+  const currentPdfDoc = showingCv
+    ? <ResumePDF data={cvForPdf} sectionOrder={sectionOrder} template={selectedTemplate} />
+    : showingRec
+    ? <RecommendationPDF data={recForPdf} />
+    : <CoverLetterPDF data={clForPdf} />;
+  const firstName = (permData.firstName || "").trim();
+  const lastName = (permData.lastName || "").trim();
+  const company = (clData.recipientCompany || "").trim();
+  const baseParts = [firstName, lastName];
+  if (company && !showingRec) baseParts.push(company);
+  const patternBase = baseParts.filter(Boolean).join("_");
+
+  const rawBase = showingCv ? cvFileBase : showingRec ? recFileBase : clFileBase;
+  const suffix = showingCv ? "CV" : showingRec ? "Lettre_Recommandation" : "Lettre_de_motivation";
+  const computedBase = patternBase ? `${patternBase}_${suffix}` : suffix;
+  const finalBase = rawBase && rawBase.trim() ? rawBase.trim() : computedBase;
+  const safeBase = finalBase.replace(/\s+/g, "_");
+  const downloadFileName = `${safeBase}.pdf`;
+
+  const handleExportProfile = () => {
+    try {
+      const payload = {
+        permanent: permData,
+        dynamic: dynData,
+        coverLetter: clData,
+        recommendation: recData,
+        sectionOrder: sectionOrder,
+        selectedTemplate: selectedTemplate,
+        aiOptions: aiOptions,
+      };
+      const json = JSON.stringify(payload, null, 2);
+      const blob = new Blob([json], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const nameParts = [firstName, lastName].filter(Boolean).join("_") || "profil";
+      const fileName = `${nameParts.replace(/\s+/g, "_")}_profil.json`;
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error("Export profil JSON echoue", e);
+    }
+  };
+
+  const handleImportProfileFile = (event) => {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const parsed = JSON.parse(e.target.result);
+        if (parsed.permanent) {
+          setPermData({ ...emptyPermanentData, ...parsed.permanent });
+        }
+        if (parsed.dynamic) {
+          setDynData({ ...emptyDynamicData, ...parsed.dynamic });
+        }
+        if (parsed.coverLetter) {
+          setClData({ ...emptyCoverLetter, ...parsed.coverLetter });
+        }
+        if (parsed.recommendation) {
+          setRecData({ ...emptyRecommendationLetter, ...parsed.recommendation });
+        }
+        if (Array.isArray(parsed.sectionOrder) && parsed.sectionOrder.length) {
+          setSectionOrder(parsed.sectionOrder);
+        }
+        if (parsed.selectedTemplate) {
+          setSelectedTemplate(parsed.selectedTemplate);
+        }
+        if (parsed.aiOptions) {
+          setAiOptions((prev) => ({ ...prev, ...parsed.aiOptions }));
+        }
+      } catch (err) {
+        console.error("Import profil JSON echoue", err);
+      } finally {
+        event.target.value = "";
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleSaveToCloud = async () => {
+    if (!user) return;
+    setCloudLoading(true);
+    setCloudStatus(null);
+    try {
+      const profile_data = {
+        permanent: permData,
+        dynamic: dynData,
+        coverLetter: clData,
+        recommendation: recData,
+        sectionOrder: sectionOrder,
+        selectedTemplate: selectedTemplate,
+        aiOptions: aiOptions,
+        cvFileBase,
+        clFileBase,
+        recFileBase,
+      };
+      const { error } = await supabase
+        .from("user_profiles")
+        .upsert(
+          { user_id: user.id, profile_data },
+          { onConflict: "user_id" }
+        );
+      if (error) throw error;
+      setCloudStatus({ ok: true, msg: "Profil sauvegardé dans le cloud." });
+      setTimeout(() => setCloudStatus(null), 4000);
+    } catch (err) {
+      setCloudStatus({ ok: false, msg: err?.message || "Erreur lors de la sauvegarde cloud." });
+    } finally {
+      setCloudLoading(false);
+    }
+  };
+
+  const handleLoadFromCloud = async () => {
+    if (!user) return;
+    setCloudLoading(true);
+    setCloudStatus(null);
+    try {
+      const { data, error } = await supabase
+        .from("user_profiles")
+        .select("profile_data")
+        .eq("user_id", user.id)
+        .single();
+      if (error) throw error;
+      if (!data?.profile_data) {
+        setCloudStatus({ ok: false, msg: "Aucun profil trouvé dans le cloud." });
+        return;
+      }
+      const p = data.profile_data;
+      if (p.permanent) setPermData({ ...emptyPermanentData, ...p.permanent });
+      if (p.dynamic) setDynData({ ...emptyDynamicData, ...p.dynamic });
+      if (p.coverLetter) setClData({ ...emptyCoverLetter, ...p.coverLetter });
+      if (p.recommendation) setRecData({ ...emptyRecommendationLetter, ...p.recommendation });
+      if (Array.isArray(p.sectionOrder) && p.sectionOrder.length) setSectionOrder(p.sectionOrder);
+      if (p.selectedTemplate) setSelectedTemplate(p.selectedTemplate);
+      if (p.aiOptions) setAiOptions((prev) => ({ ...prev, ...p.aiOptions }));
+      if (p.cvFileBase != null) setCvFileBase(p.cvFileBase);
+      if (p.clFileBase != null) setClFileBase(p.clFileBase);
+      if (p.recFileBase != null) setRecFileBase(p.recFileBase);
+      setCloudStatus({ ok: true, msg: "Profil chargé depuis le cloud." });
+      setTimeout(() => setCloudStatus(null), 4000);
+    } catch (err) {
+      setCloudStatus({ ok: false, msg: err?.message || "Erreur lors du chargement cloud." });
+    } finally {
+      setCloudLoading(false);
+    }
+  };
+
+  const joyrideSteps = [
+    { target: '[data-tour="json-zone"]', content: t("onboarding.step1Content"), title: t("onboarding.step1Title") },
+    { target: '[data-tour="form-column"]', content: t("onboarding.step2Content"), title: t("onboarding.step2Title") },
+    { target: '[data-tour="template-selector"]', content: t("onboarding.step3Content"), title: t("onboarding.step3Title") },
+    { target: '[data-tour="pdf-download"]', content: t("onboarding.step4Content"), title: t("onboarding.step4Title") },
+  ];
 
   return (
     <div className="flex flex-col h-screen bg-slate-100">
+      <Joyride
+        key={runOnboarding ? "tour-active" : "tour-idle"}
+        steps={joyrideSteps}
+        run={runOnboarding}
+        continuous
+        showProgress
+        showSkipButton
+        disableOverlayClose
+        spotlightClicks
+        callback={(data) => {
+          if (data.status === "finished" || data.status === "skipped") {
+            localStorage.setItem("cv-builder-onboarding-done", "1");
+            setRunOnboarding(false);
+          }
+        }}
+        styles={{
+          options: { primaryColor: "#111827", zIndex: 10000 },
+          tooltip: { fontSize: 13 },
+        }}
+      />
 
       {/* ════════ HEADER: JSON zone + Auto-Fill ════════ */}
       <div className="flex-shrink-0 bg-gray-900 border-b border-gray-700">
         <div className="px-5 py-3 flex items-center justify-between">
           <div>
-            <h1 className="text-lg font-bold text-white tracking-tight">Internship Application Builder</h1>
-            <p className="text-[10px] text-gray-400 mt-0.5">CV + Lettre de motivation - Auto-Fill intelligent</p>
+            <h1 className="text-lg font-bold text-white tracking-tight">{t("app.title")}</h1>
+            <p className="text-[10px] text-gray-400 mt-0.5">{t("app.subtitle")}</p>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-[10px] text-emerald-400 bg-emerald-900/30 px-2 py-0.5 rounded-full font-medium">ATS-Ready</span>
-            <span className="text-[10px] text-blue-400 bg-blue-900/30 px-2 py-0.5 rounded-full font-medium">localStorage</span>
+            <AuthHeader />
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab("cv");
+                setTimeout(() => setRunOnboarding(true), 350);
+              }}
+              className="text-[10px] bg-gray-700 text-gray-200 hover:bg-gray-600 border border-gray-600 rounded px-2 py-1 transition flex items-center gap-1"
+              title={t("actions.help")}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              {t("actions.help")}
+            </button>
+            <select
+              value={i18n.language}
+              onChange={(e) => i18n.changeLanguage(e.target.value)}
+              className="text-[10px] bg-gray-800 text-gray-200 border border-gray-600 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-gray-500"
+              aria-label={t("app.title")}
+            >
+              <option value="fr">FR</option>
+              <option value="en">EN</option>
+            </select>
+            <span className="text-[10px] text-emerald-400 bg-emerald-900/30 px-2 py-0.5 rounded-full font-medium">{t("app.atsReady")}</span>
+            <span className="text-[10px] text-blue-400 bg-blue-900/30 px-2 py-0.5 rounded-full font-medium">{t("app.localStorage")}</span>
           </div>
+        </div>
+
+        {/* AI Options */}
+        <div className="px-5 pt-2 pb-1 flex flex-wrap items-center gap-4">
+          <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">{t("aiOptions.title")}</span>
+          <label className="flex items-center gap-1.5">
+            <span className="text-[10px] text-gray-400">{t("aiOptions.targetLanguage")}</span>
+            <select
+              value={aiOptions.targetLanguage}
+              onChange={(e) => setAiOptions((p) => ({ ...p, targetLanguage: e.target.value }))}
+              className="text-[10px] bg-gray-800 text-gray-200 border border-gray-600 rounded px-2 py-0.5"
+            >
+              <option value="fr">{t("aiOptions.targetLanguageFr")}</option>
+              <option value="en">{t("aiOptions.targetLanguageEn")}</option>
+            </select>
+          </label>
+          <label className="flex items-center gap-1.5">
+            <span className="text-[10px] text-gray-400">{t("aiOptions.length")}</span>
+            <select
+              value={aiOptions.length}
+              onChange={(e) => setAiOptions((p) => ({ ...p, length: e.target.value }))}
+              className="text-[10px] bg-gray-800 text-gray-200 border border-gray-600 rounded px-2 py-0.5"
+            >
+              <option value="concis">{t("aiOptions.lengthShort")}</option>
+              <option value="detail">{t("aiOptions.lengthDetailed")}</option>
+            </select>
+          </label>
         </div>
 
         <div className="px-5 pb-4">
           <label className="block text-[11px] font-semibold text-gray-300 mb-1.5 uppercase tracking-wider">
-            Coller le JSON de l'Internships Assistant ici
+            {t("jsonZone.label")}
           </label>
           <div className="flex gap-3">
             <textarea
+              data-tour="json-zone"
               value={jsonText}
               onChange={(e) => { setJsonText(e.target.value); setAiStatus(null); }}
               rows={3}
@@ -877,13 +1350,13 @@ export default function ResumeBuilder() {
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
-                Auto-Fill Magique
+                {t("jsonZone.autoFill")}
               </button>
               <button
                 onClick={() => { setJsonText(EXAMPLE_JSON); setAiStatus(null); }}
                 className="px-4 py-1.5 bg-gray-700 text-gray-300 rounded-lg text-[10px] hover:bg-gray-600 transition"
               >
-                Charger un exemple
+                {t("jsonZone.loadExample")}
               </button>
             </div>
           </div>
@@ -912,7 +1385,7 @@ export default function ResumeBuilder() {
               : "text-gray-400 border-transparent hover:text-gray-600"
           }`}
         >
-          <span className="text-base">&#9881;</span> Profil Permanent
+          <span className="text-base">&#9881;</span> {t("tabs.profile")}
         </button>
         <button
           onClick={() => setActiveTab("cv")}
@@ -922,7 +1395,7 @@ export default function ResumeBuilder() {
               : "text-gray-400 border-transparent hover:text-gray-600"
           }`}
         >
-          <span className="text-base">&#9998;</span> CV Dynamique
+          <span className="text-base">&#9998;</span> {t("tabs.cv")}
         </button>
         <button
           onClick={() => setActiveTab("cl")}
@@ -932,39 +1405,112 @@ export default function ResumeBuilder() {
               : "text-gray-400 border-transparent hover:text-gray-600"
           }`}
         >
-          <span className="text-base">&#9993;</span> Lettre de Motivation
+          <span className="text-base">&#9993;</span> {t("tabs.coverLetter")}
+        </button>
+        <button
+          onClick={() => setActiveTab("recommendation")}
+          className={`px-4 py-3 text-sm font-semibold transition border-b-2 flex items-center gap-1.5 ${
+            activeTab === "recommendation"
+              ? "text-gray-900 border-teal-600"
+              : "text-gray-400 border-transparent hover:text-gray-600"
+          }`}
+        >
+          <span className="text-base">&#128209;</span> {t("tabs.recommendation")}
         </button>
 
         <div className="flex-1" />
 
-        <PDFDownloadLink
-          document={currentPdfDoc}
-          fileName={downloadFileName}
-          className="px-4 py-2 bg-gray-900 text-white rounded-lg font-medium text-xs hover:bg-gray-800 transition flex items-center gap-1.5"
-        >
-          {({ loading }) => (
-            <>
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-              </svg>
-              {loading ? "..." : "Telecharger PDF"}
-            </>
-          )}
-        </PDFDownloadLink>
+        {/* Bouton principal : téléchargement PDF (distinct des sauvegardes de données) */}
+        <div data-tour="pdf-download" className="ml-2">
+          <PDFDownloadLink
+            document={currentPdfDoc}
+            fileName={downloadFileName}
+            className="px-5 py-2.5 bg-gray-900 text-white rounded-lg font-semibold text-sm hover:bg-gray-800 transition flex items-center gap-2 shadow-md ring-2 ring-gray-700 ring-offset-1"
+          >
+            {({ loading }) => (
+              <>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                {loading ? "..." : t("actions.downloadPdf")}
+              </>
+            )}
+          </PDFDownloadLink>
+        </div>
       </div>
 
       {/* ════════ SPLIT SCREEN ════════ */}
       <div className="flex flex-1 min-h-0">
 
         {/* ── Left: Scrollable Form ── */}
-        <div className="w-[480px] min-w-[420px] bg-white border-r border-gray-200 overflow-y-auto">
+        <div className="w-[480px] min-w-[420px] bg-white border-r border-gray-200 overflow-y-auto" data-tour="form-column">
+          {/* Zone Sauvegarde : Local (toujours) + Cloud (si connecté) */}
+          <div className="px-5 pt-3 space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mr-1">Sauvegarde locale</span>
+              <button
+                type="button"
+                onClick={handleExportProfile}
+                className="px-2.5 py-1 text-[10px] bg-gray-100 text-gray-600 rounded-md border border-gray-200 hover:bg-gray-200 transition flex items-center gap-1"
+              >
+                📥 {t("actions.exportProfile")}
+              </button>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => profileFileInputRef.current && profileFileInputRef.current.click()}
+                  className="px-2.5 py-1 text-[10px] bg-gray-100 text-gray-600 rounded-md border border-gray-200 hover:bg-gray-200 transition flex items-center gap-1"
+                >
+                  📤 {t("actions.importProfile")}
+                </button>
+                <input
+                  ref={profileFileInputRef}
+                  type="file"
+                  accept="application/json"
+                  className="hidden"
+                  onChange={handleImportProfileFile}
+                />
+              </div>
+            </div>
+            {user && (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mr-1">Sauvegarde cloud</span>
+                <button
+                  type="button"
+                  onClick={handleSaveToCloud}
+                  disabled={cloudLoading}
+                  className="px-2.5 py-1 text-[10px] bg-sky-100 text-sky-700 rounded-md border border-sky-200 hover:bg-sky-200 transition flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  ☁️ {cloudLoading ? "..." : "Sauvegarder (Cloud)"}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleLoadFromCloud}
+                  disabled={cloudLoading}
+                  className="px-2.5 py-1 text-[10px] bg-sky-100 text-sky-700 rounded-md border border-sky-200 hover:bg-sky-200 transition flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  ☁️ {cloudLoading ? "..." : "Charger (Cloud)"}
+                </button>
+              </div>
+            )}
+            {cloudStatus && (
+              <div
+                className={`p-2 rounded-md text-[11px] ${
+                  cloudStatus.ok
+                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                    : "bg-red-50 text-red-600 border border-red-200"
+                }`}
+              >
+                {cloudStatus.msg}
+              </div>
+            )}
+          </div>
           {/* First-time welcome banner */}
           {isFirstTime && activeTab === "profile" && (
             <div className="mx-5 mt-4 p-4 bg-amber-50 border-2 border-amber-300 rounded-xl">
-              <p className="text-sm font-bold text-amber-900 mb-1">Bienvenue !</p>
+              <p className="text-sm font-bold text-amber-900 mb-1">{t("boxes.welcomeTitle")}</p>
               <p className="text-xs text-amber-800 leading-relaxed">
-                Veuillez configurer votre profil de base ci-dessous (nom, email, formation...).
-                Ces donnees seront sauvegardees dans votre navigateur et reutilisees pour toutes vos candidatures.
+                {t("boxes.welcomeText")}
               </p>
             </div>
           )}
@@ -983,6 +1529,10 @@ export default function ResumeBuilder() {
               setData={setDynData}
               fileNameBase={cvFileBase}
               setFileNameBase={setCvFileBase}
+              sectionOrder={sectionOrder}
+              setSectionOrder={setSectionOrder}
+              selectedTemplate={selectedTemplate}
+              setSelectedTemplate={setSelectedTemplate}
             />
           )}
           {activeTab === "cl" && (
@@ -993,6 +1543,14 @@ export default function ResumeBuilder() {
               setFileNameBase={setClFileBase}
             />
           )}
+          {activeTab === "recommendation" && (
+            <RecommendationEditor
+              data={recData}
+              setData={setRecData}
+              fileNameBase={recFileBase}
+              setFileNameBase={setRecFileBase}
+            />
+          )}
         </div>
 
         {/* ── Right: Alert + Live PDF Preview ── */}
@@ -1001,11 +1559,11 @@ export default function ResumeBuilder() {
           <div className="flex-shrink-0 px-4 py-3 bg-white border-b border-gray-200 space-y-2">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-semibold text-gray-700">
-                {showingCv ? "Preview CV" : "Preview Lettre de Motivation"}
+                {showingCv ? t("preview.cv") : showingRec ? t("preview.recommendation") : t("preview.coverLetter")}
               </h2>
               <div className="flex items-center gap-1.5">
-                <span className="text-[10px] text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full font-medium">ATS-Friendly</span>
-                <span className="text-[10px] text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full font-medium">Selectionnable</span>
+                <span className="text-[10px] text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full font-medium">{t("preview.atsFriendly")}</span>
+                <span className="text-[10px] text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full font-medium">{t("preview.selectable")}</span>
               </div>
             </div>
             {showingCv && <MissingFieldsAlert missing={missing} />}
