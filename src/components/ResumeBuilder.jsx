@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import Joyride from "react-joyride";
 import { pdf, PDFDownloadLink } from "@react-pdf/renderer";
 import {
   DndContext,
@@ -43,6 +43,7 @@ import {
   EXAMPLE_PROFILE_JSON,
 } from "../jsonMapper";
 import AuthHeader from "./AuthHeader";
+import HelpModal from "./HelpModal";
 import { supabase } from "../lib/supabaseClient";
 
 const EDUCATION_ONLY_EXAMPLE = `{
@@ -953,12 +954,35 @@ export default function ResumeBuilder() {
   const [activeTab, setActiveTab] = useState("profile");
   const [isFirstTime, setIsFirstTime] = useState(false);
   const [saveStatus, setSaveStatus] = useState(null);
-  const [runOnboarding, setRunOnboarding] = useState(false);
+  const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
+  const [mobilePreviewActive, setMobilePreviewActive] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [user, setUser] = useState(null);
   const [cloudStatus, setCloudStatus] = useState(null); // { ok: boolean, msg: string }
   const [cloudLoading, setCloudLoading] = useState(false);
   const profileFileInputRef = useRef(null);
   const { t, i18n } = useTranslation();
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // Apply document loaded from Account (Éditer)
+  useEffect(() => {
+    const state = location.state;
+    if (!state?.loadCv && !state?.loadRecommendation) return;
+    if (state.loadCv?.dynamic) {
+      setDynData((prev) => ({ ...emptyDynamicData, ...prev, ...state.loadCv.dynamic }));
+      if (state.loadCv.sectionOrder?.length) setSectionOrder(state.loadCv.sectionOrder);
+      if (state.loadCv.selectedTemplate) setSelectedTemplate(state.loadCv.selectedTemplate);
+      if (state.loadCv.cvFileBase != null) setCvFileBase(state.loadCv.cvFileBase);
+      setActiveTab("cv");
+    }
+    if (state.loadRecommendation?.recommendation) {
+      setRecData((prev) => ({ ...emptyRecommendationLetter, ...prev, ...state.loadRecommendation.recommendation }));
+      if (state.loadRecommendation.recFileBase != null) setRecFileBase(state.loadRecommendation.recFileBase);
+      setActiveTab("recommendation");
+    }
+    navigate(location.pathname, { replace: true, state: {} });
+  }, [location.state, location.pathname, navigate]);
 
   // Sync auth state for Cloud save/load visibility
   useEffect(() => {
@@ -981,16 +1005,6 @@ export default function ResumeBuilder() {
       setIsFirstTime(true);
       setActiveTab("profile");
     }
-  }, []);
-
-  // Onboarding: run once per device; show CV tab so template selector is visible for step 3
-  useEffect(() => {
-    if (localStorage.getItem("cv-builder-onboarding-done")) return;
-    const timer = setTimeout(() => {
-      setActiveTab("cv");
-      setRunOnboarding(true);
-    }, 800);
-    return () => clearTimeout(timer);
   }, []);
 
   // Save handler
@@ -1171,6 +1185,15 @@ export default function ResumeBuilder() {
     setCloudLoading(true);
     setCloudStatus(null);
     try {
+      const { data: existing } = await supabase
+        .from("user_profiles")
+        .select("profile_data")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      const prev = existing?.profile_data || {};
+      const cvList = Array.isArray(prev.cv_list) ? prev.cv_list : [];
+      const recList = Array.isArray(prev.recommendation_list) ? prev.recommendation_list : [];
+      const now = new Date().toISOString();
       const profile_data = {
         permanent: permData,
         dynamic: dynData,
@@ -1182,6 +1205,24 @@ export default function ResumeBuilder() {
         cvFileBase,
         clFileBase,
         recFileBase,
+        cv_list: [
+          ...cvList,
+          {
+            id: crypto.randomUUID(),
+            title: dynData.title || cvFileBase || "CV",
+            updatedAt: now,
+            data: { dynamic: dynData, sectionOrder, selectedTemplate, cvFileBase },
+          },
+        ],
+        recommendation_list: [
+          ...recList,
+          {
+            id: crypto.randomUUID(),
+            title: recData.candidateName || recFileBase || "Lettre",
+            updatedAt: now,
+            data: { recommendation: recData, recFileBase },
+          },
+        ],
       };
       const { error } = await supabase
         .from("user_profiles")
@@ -1234,64 +1275,34 @@ export default function ResumeBuilder() {
     }
   };
 
-  const joyrideSteps = [
-    { target: '[data-tour="json-zone"]', content: t("onboarding.step1Content"), title: t("onboarding.step1Title") },
-    { target: '[data-tour="form-column"]', content: t("onboarding.step2Content"), title: t("onboarding.step2Title") },
-    { target: '[data-tour="template-selector"]', content: t("onboarding.step3Content"), title: t("onboarding.step3Title") },
-    { target: '[data-tour="pdf-download"]', content: t("onboarding.step4Content"), title: t("onboarding.step4Title") },
-  ];
-
   return (
     <div className="flex flex-col h-screen bg-slate-100">
-      <Joyride
-        key={runOnboarding ? "tour-active" : "tour-idle"}
-        steps={joyrideSteps}
-        run={runOnboarding}
-        continuous
-        showProgress
-        showSkipButton
-        disableOverlayClose
-        spotlightClicks
-        callback={(data) => {
-          if (data.status === "finished" || data.status === "skipped") {
-            localStorage.setItem("cv-builder-onboarding-done", "1");
-            setRunOnboarding(false);
-          }
-        }}
-        styles={{
-          options: { primaryColor: "#111827", zIndex: 10000 },
-          tooltip: { fontSize: 13 },
-        }}
-      />
+      {isHelpModalOpen && <HelpModal onClose={() => setIsHelpModalOpen(false)} />}
 
       {/* ════════ HEADER: JSON zone + Auto-Fill ════════ */}
-      <div className="flex-shrink-0 bg-gray-900 border-b border-gray-700">
-        <div className="px-5 py-3 flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-bold text-white tracking-tight">{t("app.title")}</h1>
-            <p className="text-[10px] text-gray-400 mt-0.5">{t("app.subtitle")}</p>
+      <div className="flex-shrink-0 bg-gray-900 border-b border-gray-700 relative z-[30]">
+        <div className="px-3 md:px-5 py-2 md:py-3 flex items-center justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-sm md:text-lg font-bold text-white tracking-tight truncate">{t("app.title")}</h1>
+            <p className="text-[10px] text-gray-400 mt-0.5 hidden md:block">{t("app.subtitle")}</p>
           </div>
-          <div className="flex items-center gap-2">
+          {/* Desktop: full toolbar */}
+          <div className="hidden md:flex items-center gap-2 shrink-0">
             <AuthHeader />
             <button
               type="button"
-              onClick={() => {
-                setActiveTab("cv");
-                setTimeout(() => setRunOnboarding(true), 350);
-              }}
+              onClick={() => setIsHelpModalOpen(true)}
               className="text-[10px] bg-gray-700 text-gray-200 hover:bg-gray-600 border border-gray-600 rounded px-2 py-1 transition flex items-center gap-1"
               title={t("actions.help")}
             >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
+              <span aria-hidden>❓</span>
               {t("actions.help")}
             </button>
             <select
               value={i18n.language}
               onChange={(e) => i18n.changeLanguage(e.target.value)}
               className="text-[10px] bg-gray-800 text-gray-200 border border-gray-600 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-gray-500"
-              aria-label={t("app.title")}
+              aria-label="Langue"
             >
               <option value="fr">FR</option>
               <option value="en">EN</option>
@@ -1299,10 +1310,54 @@ export default function ResumeBuilder() {
             <span className="text-[10px] text-emerald-400 bg-emerald-900/30 px-2 py-0.5 rounded-full font-medium">{t("app.atsReady")}</span>
             <span className="text-[10px] text-blue-400 bg-blue-900/30 px-2 py-0.5 rounded-full font-medium">{t("app.localStorage")}</span>
           </div>
+          {/* Mobile: hamburger + Help only */}
+          <div className="flex md:hidden items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen((o) => !o)}
+              className="p-2 text-gray-300 hover:text-white rounded-lg hover:bg-gray-700 transition"
+              aria-label={t("mobile.menu")}
+              aria-expanded={mobileMenuOpen}
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              onClick={() => { setMobileMenuOpen(false); setIsHelpModalOpen(true); }}
+              className="p-2 text-gray-300 hover:text-white rounded-lg hover:bg-gray-700 transition shrink-0"
+              title={t("actions.help")}
+              aria-label={t("actions.help")}
+            >
+              <span className="text-lg" aria-hidden>❓</span>
+            </button>
+          </div>
         </div>
+        {/* Mobile dropdown menu */}
+        {mobileMenuOpen && (
+          <div className="md:hidden absolute left-0 right-0 top-full bg-gray-800 border-b border-gray-700 shadow-xl z-[40] px-3 py-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-gray-400 uppercase">Langue</span>
+              <select
+                value={i18n.language}
+                onChange={(e) => { i18n.changeLanguage(e.target.value); setMobileMenuOpen(false); }}
+                className="text-[11px] bg-gray-700 text-gray-200 border border-gray-600 rounded px-2 py-1"
+              >
+                <option value="fr">FR</option>
+                <option value="en">EN</option>
+              </select>
+            </div>
+            <AuthHeader />
+            <div className="flex flex-wrap gap-1.5 pt-1">
+              <span className="text-[10px] text-emerald-400 bg-emerald-900/30 px-2 py-0.5 rounded-full">{t("app.atsReady")}</span>
+              <span className="text-[10px] text-blue-400 bg-blue-900/30 px-2 py-0.5 rounded-full">{t("app.localStorage")}</span>
+            </div>
+          </div>
+        )}
 
         {/* AI Options */}
-        <div className="px-5 pt-2 pb-1 flex flex-wrap items-center gap-4">
+        <div className="px-3 md:px-5 pt-2 pb-1 flex flex-wrap items-center gap-3 md:gap-4">
           <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">{t("aiOptions.title")}</span>
           <label className="flex items-center gap-1.5">
             <span className="text-[10px] text-gray-400">{t("aiOptions.targetLanguage")}</span>
@@ -1328,11 +1383,11 @@ export default function ResumeBuilder() {
           </label>
         </div>
 
-        <div className="px-5 pb-4">
+        <div className="px-3 md:px-5 pb-4">
           <label className="block text-[11px] font-semibold text-gray-300 mb-1.5 uppercase tracking-wider">
             {t("jsonZone.label")}
           </label>
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-3">
             <textarea
               data-tour="json-zone"
               value={jsonText}
@@ -1376,74 +1431,106 @@ export default function ResumeBuilder() {
       </div>
 
       {/* ════════ TAB NAVIGATION ════════ */}
-      <div className="flex-shrink-0 bg-white border-b border-gray-200 px-5 flex items-center gap-0">
+      <div className="flex-shrink-0 bg-white border-b border-gray-200 px-2 md:px-5 flex items-center gap-0 overflow-x-auto min-h-0">
         <button
           onClick={() => setActiveTab("profile")}
-          className={`px-4 py-3 text-sm font-semibold transition border-b-2 flex items-center gap-1.5 ${
+          className={`px-3 md:px-4 py-2.5 md:py-3 text-xs md:text-sm font-semibold transition border-b-2 flex items-center gap-1 shrink-0 ${
             activeTab === "profile"
               ? "text-gray-900 border-emerald-600"
               : "text-gray-400 border-transparent hover:text-gray-600"
           }`}
         >
-          <span className="text-base">&#9881;</span> {t("tabs.profile")}
+          <span className="text-sm md:text-base">&#9881;</span>
+          <span className="hidden sm:inline">{t("tabs.profile")}</span>
         </button>
         <button
           onClick={() => setActiveTab("cv")}
-          className={`px-4 py-3 text-sm font-semibold transition border-b-2 flex items-center gap-1.5 ${
+          className={`px-3 md:px-4 py-2.5 md:py-3 text-xs md:text-sm font-semibold transition border-b-2 flex items-center gap-1 shrink-0 ${
             activeTab === "cv"
               ? "text-gray-900 border-red-600"
               : "text-gray-400 border-transparent hover:text-gray-600"
           }`}
         >
-          <span className="text-base">&#9998;</span> {t("tabs.cv")}
+          <span className="text-sm md:text-base">&#9998;</span>
+          <span className="hidden sm:inline">{t("tabs.cv")}</span>
         </button>
         <button
           onClick={() => setActiveTab("cl")}
-          className={`px-4 py-3 text-sm font-semibold transition border-b-2 flex items-center gap-1.5 ${
+          className={`px-3 md:px-4 py-2.5 md:py-3 text-xs md:text-sm font-semibold transition border-b-2 flex items-center gap-1 shrink-0 ${
             activeTab === "cl"
               ? "text-gray-900 border-violet-600"
               : "text-gray-400 border-transparent hover:text-gray-600"
           }`}
         >
-          <span className="text-base">&#9993;</span> {t("tabs.coverLetter")}
+          <span className="text-sm md:text-base">&#9993;</span>
+          <span className="hidden sm:inline">{t("tabs.coverLetter")}</span>
         </button>
         <button
           onClick={() => setActiveTab("recommendation")}
-          className={`px-4 py-3 text-sm font-semibold transition border-b-2 flex items-center gap-1.5 ${
+          className={`px-3 md:px-4 py-2.5 md:py-3 text-xs md:text-sm font-semibold transition border-b-2 flex items-center gap-1 shrink-0 ${
             activeTab === "recommendation"
               ? "text-gray-900 border-teal-600"
               : "text-gray-400 border-transparent hover:text-gray-600"
           }`}
         >
-          <span className="text-base">&#128209;</span> {t("tabs.recommendation")}
+          <span className="text-sm md:text-base">&#128209;</span>
+          <span className="hidden sm:inline">{t("tabs.recommendation")}</span>
         </button>
 
-        <div className="flex-1" />
+        <div className="flex-1 min-w-2" />
 
-        {/* Bouton principal : téléchargement PDF (distinct des sauvegardes de données) */}
-        <div data-tour="pdf-download" className="ml-2">
+        {/* Bouton principal : téléchargement PDF */}
+        <div data-tour="pdf-download" className="ml-1 md:ml-2 shrink-0">
           <PDFDownloadLink
             document={currentPdfDoc}
             fileName={downloadFileName}
-            className="px-5 py-2.5 bg-gray-900 text-white rounded-lg font-semibold text-sm hover:bg-gray-800 transition flex items-center gap-2 shadow-md ring-2 ring-gray-700 ring-offset-1"
+            className="px-3 md:px-5 py-2 md:py-2.5 bg-gray-900 text-white rounded-lg font-semibold text-xs md:text-sm hover:bg-gray-800 transition flex items-center gap-1.5 md:gap-2 shadow-md ring-2 ring-gray-700 ring-offset-1"
           >
             {({ loading }) => (
               <>
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-3.5 h-3.5 md:w-4 md:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                 </svg>
-                {loading ? "..." : t("actions.downloadPdf")}
+                <span className="hidden sm:inline">{loading ? "..." : t("actions.downloadPdf")}</span>
               </>
             )}
           </PDFDownloadLink>
         </div>
       </div>
 
-      {/* ════════ SPLIT SCREEN ════════ */}
-      <div className="flex flex-1 min-h-0">
+      {/* Mobile: toggle Édition / Aperçu (only < md) */}
+      <div className="md:hidden flex-shrink-0 flex border-b border-gray-200 bg-white">
+        <button
+          type="button"
+          onClick={() => setMobilePreviewActive(false)}
+          className={`flex-1 px-4 py-2.5 text-sm font-medium transition ${
+            !mobilePreviewActive ? "bg-gray-100 text-gray-900 border-b-2 border-gray-900" : "text-gray-500"
+          }`}
+        >
+          📝 {t("mobile.edition")}
+        </button>
+        <button
+          type="button"
+          onClick={() => setMobilePreviewActive(true)}
+          className={`flex-1 px-4 py-2.5 text-sm font-medium transition ${
+            mobilePreviewActive ? "bg-gray-100 text-gray-900 border-b-2 border-gray-900" : "text-gray-500"
+          }`}
+        >
+          👁️ {t("mobile.preview")}
+        </button>
+      </div>
 
-        {/* ── Left: Scrollable Form ── */}
-        <div className="w-[480px] min-w-[420px] bg-white border-r border-gray-200 overflow-y-auto" data-tour="form-column">
+      {/* ════════ SPLIT SCREEN (md+: side by side) / MOBILE: single pane ════════ */}
+      <div className="flex flex-1 min-h-0 flex-col md:flex-row">
+
+        {/* ── Left: Scrollable Form (hidden on mobile when preview active) ── */}
+        <div
+          className={`bg-white border-r border-gray-200 overflow-y-auto flex flex-col ${
+            /* md+: fixed width; mobile: full width when edition */
+            "md:w-[480px] md:min-w-[420px]"
+          } ${mobilePreviewActive ? "hidden md:flex" : "flex w-full md:w-[480px] md:min-w-[420px]"}`}
+          data-tour="form-column"
+        >
           {/* Zone Sauvegarde : Local (toujours) + Cloud (si connecté) */}
           <div className="px-5 pt-3 space-y-2">
             <div className="flex flex-wrap items-center gap-2">
@@ -1553,24 +1640,28 @@ export default function ResumeBuilder() {
           )}
         </div>
 
-        {/* ── Right: Alert + Live PDF Preview ── */}
-        <div className="flex-1 flex flex-col bg-slate-200">
+        {/* ── Right: Alert + Live PDF Preview (hidden on mobile when edition active) ── */}
+        <div
+          className={`flex-1 flex flex-col bg-slate-200 min-w-0 w-full ${
+            mobilePreviewActive ? "flex" : "hidden md:flex"
+          }`}
+        >
           {/* Preview header + Missing fields alert */}
-          <div className="flex-shrink-0 px-4 py-3 bg-white border-b border-gray-200 space-y-2">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-gray-700">
+          <div className="flex-shrink-0 px-3 md:px-4 py-2 md:py-3 bg-white border-b border-gray-200 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-xs md:text-sm font-semibold text-gray-700 truncate">
                 {showingCv ? t("preview.cv") : showingRec ? t("preview.recommendation") : t("preview.coverLetter")}
               </h2>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1 shrink-0">
                 <span className="text-[10px] text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full font-medium">{t("preview.atsFriendly")}</span>
-                <span className="text-[10px] text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full font-medium">{t("preview.selectable")}</span>
+                <span className="text-[10px] text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full font-medium hidden sm:inline">{t("preview.selectable")}</span>
               </div>
             </div>
             {showingCv && <MissingFieldsAlert missing={missing} />}
           </div>
 
-          {/* PDF Preview */}
-          <div className="flex-1 p-3">
+          {/* PDF Preview: w-full to avoid overflow on mobile */}
+          <div className="flex-1 p-2 md:p-3 min-h-0 min-w-0 w-full overflow-hidden">
             <PDFPreview key={activeTab} document={currentPdfDoc} />
           </div>
         </div>

@@ -1,14 +1,19 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { supabase } from "../lib/supabaseClient";
+import ForgotPassword from "./ForgotPassword";
 
 export default function AuthHeader() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showAuth, setShowAuth] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [mode, setMode] = useState("login"); // "login" | "signup"
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState({ type: "", text: "" });
+  const { t } = useTranslation();
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -30,7 +35,11 @@ export default function AuthHeader() {
     setMessage({ type: "", text: "" });
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
-      setMessage({ type: "error", text: error.message });
+      const isEmailNotConfirmed = error.message?.toLowerCase().includes("email not confirmed");
+      setMessage({
+        type: "error",
+        text: isEmailNotConfirmed ? t("auth.emailNotConfirmed") : error.message,
+      });
       return;
     }
     setMessage({ type: "success", text: "Connexion réussie." });
@@ -47,8 +56,7 @@ export default function AuthHeader() {
       setMessage({ type: "error", text: error.message });
       return;
     }
-    setMessage({ type: "success", text: "Inscription réussie. Vérifiez votre email." });
-    setShowAuth(false);
+    setMessage({ type: "success", text: t("auth.signupConfirmMessage") });
     setEmail("");
     setPassword("");
   };
@@ -67,7 +75,14 @@ export default function AuthHeader() {
   if (user) {
     return (
       <div className="flex items-center gap-2">
-        <span className="text-[10px] text-gray-300 max-w-[140px] truncate" title={user.email}>
+        <Link
+          to="/account"
+          className="text-[10px] text-sky-300 hover:text-sky-200 max-w-[120px] truncate"
+          title="Mon Compte"
+        >
+          Mon Compte
+        </Link>
+        <span className="text-[10px] text-gray-400 max-w-[100px] truncate" title={user.email}>
           {user.email}
         </span>
         <button
@@ -92,7 +107,12 @@ export default function AuthHeader() {
       </button>
 
       {showAuth && (
-        <div className="absolute right-0 top-full mt-2 w-64 bg-gray-800 border border-gray-600 rounded-lg shadow-xl p-3 z-50">
+        <div className="absolute right-0 top-full mt-2 w-72 bg-gray-800 border border-gray-600 rounded-lg shadow-xl p-3 z-50">
+          {message.type === "success" && (
+            <div className="mb-3 p-2.5 rounded-lg bg-emerald-900/40 border border-emerald-600/50 text-emerald-300 text-[11px] leading-snug">
+              {message.text}
+            </div>
+          )}
           <div className="flex gap-1 mb-2">
             <button
               type="button"
@@ -134,14 +154,30 @@ export default function AuthHeader() {
             >
               {mode === "login" ? "Se connecter" : "Créer un compte"}
             </button>
+            {mode === "login" && (
+              <button
+                type="button"
+                onClick={() => { setShowAuth(false); setShowForgotPassword(true); setMessage({ type: "", text: "" }); }}
+                className="w-full text-[10px] text-gray-400 hover:text-sky-400 transition"
+              >
+                Mot de passe oublié ?
+              </button>
+            )}
           </form>
 
-          {message.text && (
-            <p className={`mt-2 text-[10px] ${message.type === "error" ? "text-red-400" : "text-emerald-400"}`}>
+          {message.type === "error" && message.text && (
+            <p className="mt-2 text-[10px] text-red-400">
               {message.text}
             </p>
           )}
         </div>
+      )}
+
+      {showForgotPassword && (
+        <ForgotPassword
+          onClose={() => setShowForgotPassword(false)}
+          onSuccess={() => setMessage({ type: "success", text: "Un email contenant un lien de réinitialisation vous a été envoyé." })}
+        />
       )}
     </div>
   );

@@ -1,6 +1,9 @@
 import { Component, Suspense, lazy } from "react";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 
 const ResumeBuilder = lazy(() => import("./components/ResumeBuilder"));
+const Account = lazy(() => import("./components/Account"));
+const UpdatePassword = lazy(() => import("./components/UpdatePassword"));
 
 class ErrorBoundary extends Component {
   constructor(props) {
@@ -52,9 +55,15 @@ function Loading() {
 function App() {
   return (
     <ErrorBoundary>
-      <Suspense fallback={<Loading />}>
-        <ResumeBuilder />
-      </Suspense>
+      <BrowserRouter>
+        <Suspense fallback={<Loading />}>
+          <Routes>
+            <Route path="/" element={<ResumeBuilder />} />
+            <Route path="/account" element={<Account />} />
+            <Route path="/update-password" element={<UpdatePassword />} />
+          </Routes>
+        </Suspense>
+      </BrowserRouter>
     </ErrorBoundary>
   );
 }

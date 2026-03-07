@@ -76,14 +76,61 @@
     "lengthShort": "Concis / 1 page max",
     "lengthDetailed": "Détaillé"
   },
+  "auth": {
+    "signupConfirmMessage": "Veuillez confirmer votre compte via le lien envoyé sur votre adresse mail.",
+    "emailNotConfirmed": "Compte non confirmé. Vérifiez votre boîte mail et cliquez sur le lien de confirmation."
+  },
+  "account": {
+    "title": "Mon Compte",
+    "subtitle": "Gérez votre compte et vos données.",
+    "backToApp": "Retour à l'app",
+    "accountSettings": "Paramètres du compte",
+    "myDocuments": "Mes Documents",
+    "email": "Email",
+    "changePassword": "Modifier mon mot de passe",
+    "dangerZone": "Zone de danger",
+    "deleteAccount": "Supprimer mon compte",
+    "deleteAccountDescription": "La suppression de votre compte efface vos données sauvegardées dans le cloud (profil, CV, lettres).",
+    "deleteAccountConfirm": "Cliquez à nouveau pour confirmer la suppression.",
+    "cancel": "Annuler",
+    "confirmDelete": "Confirmer la suppression",
+    "deleting": "Suppression...",
+    "loading": "Chargement...",
+    "noDocuments": "Aucun document sauvegardé dans le cloud.",
+    "edit": "Éditer",
+    "delete": "Supprimer",
+    "lastModified": "Modifié le",
+    "cv": "CV",
+    "recommendation": "Lettre de recommandation"
+  },
   "onboarding": {
     "step1Title": "Zone JSON",
-    "step1Content": "Collez ici le code généré par votre Assistant IA, puis cliquez sur Auto-Fill Magique.",
+    "step1Content": "Collez ici le JSON généré par votre Assistant IA, puis cliquez sur Auto-Fill Magique.",
     "step2Title": "Formulaire",
     "step2Content": "Modifiez le texte manuellement ici ou réorganisez l'ordre des sections par glisser-déposer.",
     "step3Title": "Template",
     "step3Content": "Changez le design du CV en un clic (FlowCV ou Classique).",
     "step4Title": "Téléchargement",
     "step4Content": "Téléchargez votre CV ou lettre optimisé(e) en PDF."
+  },
+  "mobile": {
+    "edition": "Édition",
+    "preview": "Aperçu du CV",
+    "menu": "Menu"
+  },
+  "helpModal": {
+    "title": "Comment créer votre CV en 3 minutes avec l'IA ⚡",
+    "close": "Fermer",
+    "step1Title": "Étape 1 — Obtenir le modèle JSON",
+    "step1Text": "Récupérez la structure vide de notre CV.",
+    "copyJsonButton": "Copier le modèle JSON",
+    "step2Title": "Étape 2 — Demander à l'IA (ChatGPT / Claude)",
+    "step2Text": "Allez sur votre IA préférée, collez le modèle, et ajoutez votre profil LinkedIn ou l'offre d'emploi. Demandez-lui de remplir les champs !",
+    "examplePrompt": "Exemple de prompt",
+    "promptExample": "Agis comme un expert RH. Remplis ce JSON avec mes infos (profil LinkedIn ou offre ci-dessous) pour un CV et une lettre de motivation optimisés ATS.",
+    "step3Title": "Étape 3 — Importer et Générer",
+    "step3Text": "Copiez le résultat donné par l'IA et importez-le ici. Votre CV est prêt et mis en page !",
+    "importJsonButton": "📤 Importer JSON",
+    "gotIt": "C'est compris !"
   }
 }
