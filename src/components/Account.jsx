@@ -101,10 +101,10 @@ export default function Account() {
   };
 
   const handleEditCv = (item) => {
-    navigate("/", { state: { loadCv: item.data } });
+    navigate("/builder", { state: { loadCv: item.data } });
   };
   const handleEditRecommendation = (item) => {
-    navigate("/", { state: { loadRecommendation: item.data } });
+    navigate("/builder", { state: { loadRecommendation: item.data } });
   };
 
   const handleDeleteCv = async (item) => {
@@ -155,7 +155,7 @@ export default function Account() {
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col">
       <header className="flex-shrink-0 bg-gray-900 border-b border-gray-700 px-5 py-3 flex items-center justify-between">
-        <Link to="/" className="text-sm font-bold text-white hover:text-gray-200 transition">
+        <Link to="/builder" className="text-sm font-bold text-white hover:text-gray-200 transition">
           ← {t("account.backToApp")}
         </Link>
         <span className="text-[10px] text-gray-400">{t("account.title")}</span>

@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { pdf, PDFDownloadLink } from "@react-pdf/renderer";
 import {
@@ -40,11 +40,12 @@ import {
   mapJsonToPermanentData,
   mapJsonToCoverLetter,
   EXAMPLE_JSON,
-  EXAMPLE_PROFILE_JSON,
 } from "../jsonMapper";
 import AuthHeader from "./AuthHeader";
 import HelpModal from "./HelpModal";
+import JsonImportModal from "./JsonImportModal";
 import { supabase } from "../lib/supabaseClient";
+import { SUPPORTED_LANGUAGES } from "../i18n";
 
 const EDUCATION_ONLY_EXAMPLE = `{
   "education": [
@@ -102,6 +103,7 @@ function FieldArea({ label, value, onChange, rows = 2, placeholder = "" }) {
 }
 
 function Section({ title, onAdd, children, defaultOpen = true }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(defaultOpen);
   return (
     <div className="mb-1">
@@ -116,7 +118,7 @@ function Section({ title, onAdd, children, defaultOpen = true }) {
               onClick={(e) => { e.stopPropagation(); onAdd(); }}
               className="text-[10px] bg-gray-800 text-white px-2 py-0.5 rounded hover:bg-gray-700 transition cursor-pointer"
             >
-              + Add
+              + {t("form.add")}
             </span>
           )}
           <svg className={`w-3.5 h-3.5 text-gray-400 transition-transform ${open ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -130,6 +132,7 @@ function Section({ title, onAdd, children, defaultOpen = true }) {
 }
 
 function EntryCard({ children, onRemove }) {
+  const { t } = useTranslation();
   return (
     <div className="mb-3 p-3 bg-gray-50/80 rounded-lg border border-gray-100 relative group">
       {onRemove && (
@@ -137,7 +140,7 @@ function EntryCard({ children, onRemove }) {
           onClick={onRemove}
           className="absolute top-2 right-2 text-[10px] text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
         >
-          Remove
+          {t("form.remove")}
         </button>
       )}
       {children}
@@ -146,6 +149,7 @@ function EntryCard({ children, onRemove }) {
 }
 
 function JsonFormatHint({ label, example }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   return (
     <div className="mt-1.5">
@@ -155,7 +159,7 @@ function JsonFormatHint({ label, example }) {
         className="inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded-md border border-gray-300 text-gray-600 hover:bg-gray-100 transition"
       >
         <span className="text-[11px]">{}{"{"}{"}"}</span>
-        <span>Show JSON format example {label}</span>
+        <span>{t("form.showJsonExample")} {label}</span>
       </button>
       {open && (
         <pre className="mt-1 max-h-52 overflow-auto text-[11px] leading-snug bg-slate-900 text-slate-100 border border-slate-700 rounded-md p-2 whitespace-pre">
@@ -193,7 +197,7 @@ function SortableSectionItem({ id }) {
         className="p-1 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 cursor-grab active:cursor-grabbing touch-none"
         {...attributes}
         {...listeners}
-        aria-label="Réordonner"
+        aria-label={t("form.reorder")}
       >
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
@@ -343,8 +347,6 @@ function MissingFieldsAlert({ missing }) {
 
 function PermanentProfileEditor({ data, setData, onSave, saveStatus }) {
   const { t } = useTranslation();
-  const [importJson, setImportJson] = useState("");
-  const [importStatus, setImportStatus] = useState(null);
 
   const upd = useCallback((path, value) => {
     setData((prev) => {
@@ -374,65 +376,10 @@ function PermanentProfileEditor({ data, setData, onSave, saveStatus }) {
     if (f) { const r = new FileReader(); r.onloadend = () => upd("photo", r.result); r.readAsDataURL(f); }
   };
 
-  const handleImportJson = () => {
-    if (!importJson.trim()) { setImportStatus({ ok: false, msg: t("boxes.profileImportError") }); return; }
-    try {
-      const mapped = mapJsonToPermanentData(importJson);
-      setData((prev) => {
-        const updated = { ...prev };
-        Object.entries(mapped).forEach(([k, v]) => {
-          if (v === null) return;
-          if (Array.isArray(v) && v.length) updated[k] = v;
-          else if (typeof v === "string" && v) updated[k] = v;
-        });
-        return updated;
-      });
-      setImportStatus({ ok: true, msg: t("boxes.profileImportSuccess") });
-    } catch (e) {
-      setImportStatus({ ok: false, msg: t("boxes.profileImportInvalid", { error: e.message }) });
-    }
-  };
-
   return (
     <div className="px-5 pb-4">
-      {/* JSON Import zone */}
-      <div className="mt-4 mb-2 p-4 bg-blue-50 border border-blue-200 rounded-xl">
-        <label className="block text-[11px] font-bold text-blue-800 uppercase tracking-wider mb-2">
-          {t("boxes.profileJsonTitle")}
-        </label>
-        <textarea
-          value={importJson}
-          onChange={(e) => { setImportJson(e.target.value); setImportStatus(null); }}
-          rows={4}
-          spellCheck={false}
-          placeholder={t("boxes.profileJsonPlaceholder")}
-          className="w-full px-3 py-2 bg-white border border-blue-200 rounded-lg text-[11px] font-mono leading-relaxed focus:outline-none focus:ring-2 focus:ring-blue-400 transition resize-vertical"
-        />
-        <div className="flex gap-2 mt-2">
-          <button
-            onClick={handleImportJson}
-            className="flex-1 bg-blue-600 text-white py-2 rounded-lg font-medium text-xs hover:bg-blue-700 transition"
-          >
-            {t("boxes.profileImportBtn")}
-          </button>
-          <button
-            onClick={() => { setImportJson(EXAMPLE_PROFILE_JSON); setImportStatus(null); }}
-            className="px-3 py-2 bg-blue-100 text-blue-600 rounded-lg text-[10px] hover:bg-blue-200 transition font-medium"
-          >
-            {t("boxes.profileExample")}
-          </button>
-        </div>
-        <JsonFormatHint label="(profil complet)" example={EXAMPLE_PROFILE_JSON} />
-        <JsonFormatHint label="(education uniquement)" example={EDUCATION_ONLY_EXAMPLE} />
-        {importStatus && (
-          <div className={`mt-2 p-2 rounded-lg text-[11px] ${
-            importStatus.ok ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-red-50 text-red-600 border border-red-200"
-          }`}>{importStatus.msg}</div>
-        )}
-      </div>
-
       {/* Identity */}
-      <Section title="Identite" defaultOpen={true}>
+      <Section title={t("form.identity")} defaultOpen={true}>
         <div className="flex items-center gap-3 mb-3">
           {data.photo ? (
             <img src={data.photo} alt="" className="w-12 h-12 rounded-full object-cover border-2 border-gray-200" />
@@ -442,31 +389,31 @@ function PermanentProfileEditor({ data, setData, onSave, saveStatus }) {
             </div>
           )}
           <label className="cursor-pointer text-[10px] bg-gray-100 hover:bg-gray-200 px-2.5 py-1.5 rounded transition">
-            Photo
+            {t("form.photo")}
             <input type="file" accept="image/*" onChange={handlePhoto} className="hidden" />
           </label>
           {data.photo && (
-            <button onClick={() => upd("photo", null)} className="text-[10px] text-red-400 hover:text-red-600">Suppr.</button>
+            <button onClick={() => upd("photo", null)} className="text-[10px] text-red-400 hover:text-red-600">{t("form.deletePhoto")}</button>
           )}
         </div>
         <div className="grid grid-cols-2 gap-3 mb-2">
           <div>
             <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-0.5">
-              Forme de la photo
+              {t("form.photoShape")}
             </label>
             <select
               value={data.photoShape || "circle"}
               onChange={(e) => upd("photoShape", e.target.value)}
               className="w-full px-2 py-1.5 border border-gray-200 rounded-md text-xs bg-white focus:outline-none focus:ring-2 focus:ring-gray-800"
             >
-              <option value="circle">Ronde</option>
-              <option value="square">Carrée</option>
-              <option value="rounded">Rectangle arrondi</option>
+              <option value="circle">{t("form.photoShapeCircle")}</option>
+              <option value="square">{t("form.photoShapeSquare")}</option>
+              <option value="rounded">{t("form.photoShapeRounded")}</option>
             </select>
           </div>
           <div>
             <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-0.5">
-              Taille de la photo
+              {t("form.photoSize")}
             </label>
             <input
               type="range"
@@ -483,8 +430,8 @@ function PermanentProfileEditor({ data, setData, onSave, saveStatus }) {
           </div>
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <Field label="Prenom *" value={data.firstName} onChange={(e) => upd("firstName", e.target.value)} />
-          <Field label="Nom *" value={data.lastName} onChange={(e) => upd("lastName", e.target.value)} />
+          <Field label={t("form.firstName")} value={data.firstName} onChange={(e) => upd("firstName", e.target.value)} />
+          <Field label={t("form.lastName")} value={data.lastName} onChange={(e) => upd("lastName", e.target.value)} />
         </div>
         <JsonFormatHint
           label="(firstName / lastName)"
@@ -496,12 +443,12 @@ function PermanentProfileEditor({ data, setData, onSave, saveStatus }) {
       </Section>
 
       {/* Contact */}
-      <Section title="Contact" defaultOpen={true}>
-        <Field label="Email *" type="email" value={data.email} onChange={(e) => upd("email", e.target.value)} />
-        <Field label="Telephone *" value={data.phone} onChange={(e) => upd("phone", e.target.value)} />
-        <Field label="Lieu" value={data.location} onChange={(e) => upd("location", e.target.value)} />
-        <Field label="LinkedIn" value={data.linkedin} onChange={(e) => upd("linkedin", e.target.value)} />
-        <Field label="Portfolio / GitHub" value={data.portfolio} onChange={(e) => upd("portfolio", e.target.value)} />
+      <Section title={t("form.contact")} defaultOpen={true}>
+        <Field label={t("form.email")} type="email" value={data.email} onChange={(e) => upd("email", e.target.value)} />
+        <Field label={t("form.phone")} value={data.phone} onChange={(e) => upd("phone", e.target.value)} />
+        <Field label={t("form.location")} value={data.location} onChange={(e) => upd("location", e.target.value)} />
+        <Field label={t("form.linkedin")} value={data.linkedin} onChange={(e) => upd("linkedin", e.target.value)} />
+        <Field label={t("form.portfolio")} value={data.portfolio} onChange={(e) => upd("portfolio", e.target.value)} />
         <JsonFormatHint
           label="(contact)"
           example={`{
@@ -515,34 +462,34 @@ function PermanentProfileEditor({ data, setData, onSave, saveStatus }) {
       </Section>
 
       {/* Education */}
-      <Section title="Formation Academique" onAdd={addEdu} defaultOpen={true}>
+      <Section title={t("form.education")} onAdd={addEdu} defaultOpen={true}>
         {data.education.length === 0 && (
-          <p className="text-xs text-gray-400 italic mb-2">Aucun diplome ajoute. Cliquez "+ Add" ci-dessus.</p>
+          <p className="text-xs text-gray-400 italic mb-2">{t("form.noEducation")}</p>
         )}
         {data.education.map((edu) => (
           <EntryCard key={edu.id} onRemove={() => rmEdu(edu.id)}>
-            <Field label="Diplome" value={edu.degree} onChange={(e) => updEdu(edu.id, "degree", e.target.value)} />
+            <Field label={t("form.degree")} value={edu.degree} onChange={(e) => updEdu(edu.id, "degree", e.target.value)} />
             <div className="grid grid-cols-2 gap-2">
-              <Field label="Ecole" value={edu.school} onChange={(e) => updEdu(edu.id, "school", e.target.value)} />
-              <Field label="Lieu" value={edu.location} onChange={(e) => updEdu(edu.id, "location", e.target.value)} />
+              <Field label={t("form.school")} value={edu.school} onChange={(e) => updEdu(edu.id, "school", e.target.value)} />
+              <Field label={t("form.location")} value={edu.location} onChange={(e) => updEdu(edu.id, "location", e.target.value)} />
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <Field label="Debut" value={edu.startDate} onChange={(e) => updEdu(edu.id, "startDate", e.target.value)} placeholder="09/2021" />
-              <Field label="Fin" value={edu.endDate} onChange={(e) => updEdu(edu.id, "endDate", e.target.value)} placeholder="06/2026" />
+              <Field label={t("form.start")} value={edu.startDate} onChange={(e) => updEdu(edu.id, "startDate", e.target.value)} placeholder="09/2021" />
+              <Field label={t("form.end")} value={edu.endDate} onChange={(e) => updEdu(edu.id, "endDate", e.target.value)} placeholder="06/2026" />
             </div>
-            <FieldArea label="Description" value={edu.description} onChange={(e) => updEdu(edu.id, "description", e.target.value)} rows={2} />
+            <FieldArea label={t("form.description")} value={edu.description} onChange={(e) => updEdu(edu.id, "description", e.target.value)} rows={2} />
           </EntryCard>
         ))}
         <JsonFormatHint label="(education)" example={EDUCATION_ONLY_EXAMPLE} />
       </Section>
 
       {/* Languages */}
-      <Section title="Langues" onAdd={addLang} defaultOpen={true}>
+      <Section title={t("form.languages")} onAdd={addLang} defaultOpen={true}>
         {data.languages.map((l, i) => (
           <div key={i} className="flex items-center gap-1.5 mb-1.5">
-            <input value={l.language} onChange={(e) => updLang(i, "language", e.target.value)} placeholder="Langue"
+            <input value={l.language} onChange={(e) => updLang(i, "language", e.target.value)} placeholder={t("form.language")}
               className="flex-1 px-2.5 py-1.5 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-gray-800 bg-white" />
-            <input value={l.level} onChange={(e) => updLang(i, "level", e.target.value)} placeholder="Niveau"
+            <input value={l.level} onChange={(e) => updLang(i, "level", e.target.value)} placeholder={t("form.level")}
               className="w-32 px-2.5 py-1.5 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-gray-800 bg-white" />
             <button onClick={() => rmLang(i)} className="text-red-400 hover:text-red-600 text-[10px] px-1">X</button>
           </div>
@@ -558,7 +505,7 @@ function PermanentProfileEditor({ data, setData, onSave, saveStatus }) {
       </Section>
 
       {/* Certificates */}
-      <Section title="Certifications" onAdd={addCert} defaultOpen={false}>
+      <Section title={t("form.certifications")} onAdd={addCert} defaultOpen={false}>
         {data.certificates.map((c, i) => (
           <div key={i} className="flex items-center gap-1.5 mb-1.5">
             <input value={c} onChange={(e) => updCert(i, e.target.value)}
@@ -645,8 +592,8 @@ function DynamicCVEditor({ data, setData, fileNameBase, setFileNameBase, section
         <SectionOrderSortable sectionOrder={sectionOrder} setSectionOrder={setSectionOrder} />
       </Section>
 
-      <Section title="Titre du CV" defaultOpen={true}>
-        <Field label="Titre / Headline *" value={data.title} onChange={(e) => upd("title", e.target.value)} placeholder="Ex: AI Engineer Intern" />
+      <Section title={t("form.cvTitle")} defaultOpen={true}>
+        <Field label={t("form.titleHeadline")} value={data.title} onChange={(e) => upd("title", e.target.value)} placeholder={t("form.titlePlaceholder")} />
         <JsonFormatHint
           label="(title)"
           example={`{
@@ -655,8 +602,8 @@ function DynamicCVEditor({ data, setData, fileNameBase, setFileNameBase, section
         />
       </Section>
 
-      <Section title="Resume / Summary" defaultOpen={true}>
-        <FieldArea label="Resume *" value={data.profile} onChange={(e) => upd("profile", e.target.value)} rows={4} placeholder="Votre resume professionnel adapte a cette offre..." />
+      <Section title={t("sections.summary")} defaultOpen={true}>
+        <FieldArea label={t("form.resume")} value={data.profile} onChange={(e) => upd("profile", e.target.value)} rows={4} placeholder={t("form.resumePlaceholder")} />
         <JsonFormatHint
           label="(summary)"
           example={`{
@@ -665,22 +612,22 @@ function DynamicCVEditor({ data, setData, fileNameBase, setFileNameBase, section
         />
       </Section>
 
-      <Section title="Experiences" onAdd={addExp} defaultOpen={true}>
+      <Section title={t("form.experience")} onAdd={addExp} defaultOpen={true}>
         {data.experience.length === 0 && (
-          <p className="text-xs text-gray-400 italic mb-2">Aucune experience. Cliquez "+ Add" ou utilisez l'Auto-Fill.</p>
+          <p className="text-xs text-gray-400 italic mb-2">{t("form.noExperience")}</p>
         )}
         {data.experience.map((exp) => (
           <EntryCard key={exp.id} onRemove={() => rmExp(exp.id)}>
-            <Field label="Poste" value={exp.jobTitle} onChange={(e) => updExp(exp.id, "jobTitle", e.target.value)} />
+            <Field label={t("form.jobTitle")} value={exp.jobTitle} onChange={(e) => updExp(exp.id, "jobTitle", e.target.value)} />
             <div className="grid grid-cols-2 gap-2">
-              <Field label="Entreprise" value={exp.company} onChange={(e) => updExp(exp.id, "company", e.target.value)} />
-              <Field label="Lieu" value={exp.location} onChange={(e) => updExp(exp.id, "location", e.target.value)} />
+              <Field label={t("form.company")} value={exp.company} onChange={(e) => updExp(exp.id, "company", e.target.value)} />
+              <Field label={t("form.location")} value={exp.location} onChange={(e) => updExp(exp.id, "location", e.target.value)} />
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <Field label="Debut (MM/YYYY)" value={exp.startDate} onChange={(e) => updExp(exp.id, "startDate", e.target.value)} placeholder="09/2025" />
-              <Field label="Fin (MM/YYYY)" value={exp.endDate} onChange={(e) => updExp(exp.id, "endDate", e.target.value)} placeholder="Present" />
+              <Field label={t("form.startDate")} value={exp.startDate} onChange={(e) => updExp(exp.id, "startDate", e.target.value)} placeholder={t("form.startPlaceholder")} />
+              <Field label={t("form.endDate")} value={exp.endDate} onChange={(e) => updExp(exp.id, "endDate", e.target.value)} placeholder={t("form.endPlaceholder")} />
             </div>
-            <FieldArea label="Description / Bullet points" value={exp.description} onChange={(e) => updExp(exp.id, "description", e.target.value)} rows={3} />
+            <FieldArea label={t("form.descriptionBullets")} value={exp.description} onChange={(e) => updExp(exp.id, "description", e.target.value)} rows={3} />
           </EntryCard>
         ))}
         <JsonFormatHint
@@ -700,15 +647,15 @@ function DynamicCVEditor({ data, setData, fileNameBase, setFileNameBase, section
         />
       </Section>
 
-      <Section title="Projets" onAdd={addProj} defaultOpen={true}>
+      <Section title={t("form.projects")} onAdd={addProj} defaultOpen={true}>
         {data.projects.length === 0 && (
-          <p className="text-xs text-gray-400 italic mb-2">Aucun projet. Cliquez "+ Add" ou utilisez l'Auto-Fill.</p>
+          <p className="text-xs text-gray-400 italic mb-2">{t("form.noProject")}</p>
         )}
         {data.projects.map((p) => (
           <EntryCard key={p.id} onRemove={() => rmProj(p.id)}>
-            <Field label="Nom du projet" value={p.name} onChange={(e) => updProj(p.id, "name", e.target.value)} />
-            <Field label="Technologies" value={p.technologies} onChange={(e) => updProj(p.id, "technologies", e.target.value)} />
-            <FieldArea label="Description" value={p.description} onChange={(e) => updProj(p.id, "description", e.target.value)} rows={2} />
+            <Field label={t("form.projectName")} value={p.name} onChange={(e) => updProj(p.id, "name", e.target.value)} />
+            <Field label={t("form.technologies")} value={p.technologies} onChange={(e) => updProj(p.id, "technologies", e.target.value)} />
+            <FieldArea label={t("form.description")} value={p.description} onChange={(e) => updProj(p.id, "description", e.target.value)} rows={2} />
           </EntryCard>
         ))}
         <JsonFormatHint
@@ -725,9 +672,9 @@ function DynamicCVEditor({ data, setData, fileNameBase, setFileNameBase, section
         />
       </Section>
 
-      <Section title="Competences cles" onAdd={addSkill} defaultOpen={true}>
+      <Section title={t("form.keySkills")} onAdd={addSkill} defaultOpen={true}>
         {data.skills.length === 0 && (
-          <p className="text-xs text-gray-400 italic mb-2">Aucune competence. Cliquez "+ Add" ou utilisez l'Auto-Fill.</p>
+          <p className="text-xs text-gray-400 italic mb-2">{t("form.noSkill")}</p>
         )}
         {data.skills.map((sk, i) => (
           <div key={i} className="flex items-center gap-1.5 mb-1.5">
@@ -744,15 +691,15 @@ function DynamicCVEditor({ data, setData, fileNameBase, setFileNameBase, section
         />
       </Section>
 
-      <Section title="Nom du fichier CV" defaultOpen={true}>
+      <Section title={t("form.fileNameCv")} defaultOpen={true}>
         <Field
-          label='Nom du fichier (sans ".pdf")'
+          label={t("form.fileNameCv")}
           value={fileNameBase}
           onChange={(e) => setFileNameBase(e.target.value)}
-          placeholder="NOM-PRENOM-CV"
+          placeholder={t("form.fileNamePlaceholder")}
         />
         <p className="text-[10px] text-gray-400">
-          Ce nom sera utilise lors du telechargement du PDF du CV.
+          {t("form.fileNameCvHint")}
         </p>
       </Section>
 
@@ -762,7 +709,7 @@ function DynamicCVEditor({ data, setData, fileNameBase, setFileNameBase, section
           onClick={() => setData({ ...emptyDynamicData })}
           className="w-full py-2.5 bg-gray-100 text-gray-500 rounded-lg text-xs font-medium hover:bg-gray-200 transition border border-gray-200"
         >
-          Reinitialiser les champs dynamiques (nouvelle candidature)
+          {t("form.resetDynamic")}
         </button>
       </div>
     </div>
@@ -802,42 +749,42 @@ function CoverLetterEditor({ data, setData, fileNameBase, setFileNameBase }) {
 }`}
       />
 
-      <Section title="Destinataire" defaultOpen={true}>
-        <Field label="Nom du destinataire" value={data.recipientName} onChange={(e) => upd("recipientName", e.target.value)} placeholder="M. / Mme ..." />
-        <Field label="Entreprise" value={data.recipientCompany} onChange={(e) => upd("recipientCompany", e.target.value)} />
-        <Field label="Adresse" value={data.recipientAddress} onChange={(e) => upd("recipientAddress", e.target.value)} />
+      <Section title={t("form.recipient")} defaultOpen={true}>
+        <Field label={t("form.recipientName")} value={data.recipientName} onChange={(e) => upd("recipientName", e.target.value)} placeholder={t("form.recipientPlaceholder")} />
+        <Field label={t("form.enterprise")} value={data.recipientCompany} onChange={(e) => upd("recipientCompany", e.target.value)} />
+        <Field label={t("form.address")} value={data.recipientAddress} onChange={(e) => upd("recipientAddress", e.target.value)} />
       </Section>
 
-      <Section title="En-tete" defaultOpen={true}>
-        <Field label="Date" value={data.date} onChange={(e) => upd("date", e.target.value)} />
-        <Field label="Objet" value={data.subject} onChange={(e) => upd("subject", e.target.value)} placeholder="Candidature - Stage ..." />
-        <Field label="Formule d'appel" value={data.greeting} onChange={(e) => upd("greeting", e.target.value)} />
+      <Section title={t("form.header")} defaultOpen={true}>
+        <Field label={t("form.date")} value={data.date} onChange={(e) => upd("date", e.target.value)} />
+        <Field label={t("form.subject")} value={data.subject} onChange={(e) => upd("subject", e.target.value)} placeholder={t("form.subjectPlaceholder")} />
+        <Field label={t("form.greeting")} value={data.greeting} onChange={(e) => upd("greeting", e.target.value)} />
       </Section>
 
-      <Section title="Corps de la lettre" defaultOpen={true}>
+      <Section title={t("form.bodyLetter")} defaultOpen={true}>
         <FieldArea
-          label="Texte (separez les paragraphes par des sauts de ligne)"
+          label={t("form.bodyLetterLabel")}
           value={data.body}
           onChange={(e) => upd("body", e.target.value)}
           rows={12}
-          placeholder="Redigez votre lettre ici ou utilisez l'Auto-Fill..."
+          placeholder={t("form.bodyPlaceholder")}
         />
       </Section>
 
-      <Section title="Cloture" defaultOpen={true}>
-        <FieldArea label="Formule de politesse" value={data.closing} onChange={(e) => upd("closing", e.target.value)} rows={2} />
-        <Field label="Signature (vide = nom du profil)" value={data.signature} onChange={(e) => upd("signature", e.target.value)} />
+      <Section title={t("form.closure")} defaultOpen={true}>
+        <FieldArea label={t("form.closingFormula")} value={data.closing} onChange={(e) => upd("closing", e.target.value)} rows={2} />
+        <Field label={t("form.signatureEmpty")} value={data.signature} onChange={(e) => upd("signature", e.target.value)} />
       </Section>
 
-      <Section title="Nom du fichier Lettre" defaultOpen={true}>
+      <Section title={t("form.fileNameLetter")} defaultOpen={true}>
         <Field
-          label='Nom du fichier (sans ".pdf")'
+          label={t("form.fileNameLetter")}
           value={fileNameBase}
           onChange={(e) => setFileNameBase(e.target.value)}
-          placeholder="NOM-PRENOM-MOTIVATION-LETTER"
+          placeholder={t("form.fileNameLetterPlaceholder")}
         />
         <p className="text-[10px] text-gray-400">
-          Ce nom sera utilise lors du telechargement du PDF de la lettre de motivation.
+          {t("form.fileNameLetterHint")}
         </p>
       </Section>
     </div>
@@ -879,55 +826,55 @@ function RecommendationEditor({ data, setData, fileNameBase, setFileNameBase }) 
         </button>
       </div>
 
-      <Section title="Recommandeur" defaultOpen={true}>
+      <Section title={t("form.recommender")} defaultOpen={true}>
         <Field
-          label="Nom du recommandeur"
+          label={t("form.recommenderName")}
           value={data.recommenderName}
           onChange={(e) => upd("recommenderName", e.target.value)}
-          placeholder="Dr. Jean Dupont"
+          placeholder={t("form.recommenderNamePlaceholder")}
         />
         <Field
-          label="Titre du recommandeur"
+          label={t("form.recommenderTitle")}
           value={data.recommenderTitle}
           onChange={(e) => upd("recommenderTitle", e.target.value)}
-          placeholder="Professeur, Responsable RH..."
+          placeholder={t("form.recommenderTitlePlaceholder")}
         />
       </Section>
 
-      <Section title="Candidat et entreprise cible" defaultOpen={true}>
+      <Section title={t("form.candidateTarget")} defaultOpen={true}>
         <Field
-          label="Nom du candidat"
+          label={t("form.candidateName")}
           value={data.candidateName}
           onChange={(e) => upd("candidateName", e.target.value)}
-          placeholder="Vide = nom du profil permanent"
+          placeholder={t("form.candidatePlaceholder")}
         />
         <Field
-          label="Entreprise cible"
+          label={t("form.targetCompany")}
           value={data.targetCompany}
           onChange={(e) => upd("targetCompany", e.target.value)}
-          placeholder="Entreprise pour laquelle la lettre est destinee"
+          placeholder={t("form.targetCompanyPlaceholder")}
         />
       </Section>
 
-      <Section title="Corps de la lettre" defaultOpen={true}>
+      <Section title={t("form.bodyLetter")} defaultOpen={true}>
         <FieldArea
-          label="Texte (paragraphes separes par des sauts de ligne)"
+          label={t("form.bodyLetterLabelRec")}
           value={data.body}
           onChange={(e) => upd("body", e.target.value)}
           rows={12}
-          placeholder="Redigez la lettre de recommandation..."
+          placeholder={t("form.bodyPlaceholderRec")}
         />
       </Section>
 
-      <Section title="Nom du fichier" defaultOpen={true}>
+      <Section title={t("form.fileNameRec")} defaultOpen={true}>
         <Field
-          label='Nom du fichier (sans ".pdf")'
+          label={t("form.fileNameRec")}
           value={fileNameBase}
           onChange={(e) => setFileNameBase(e.target.value)}
-          placeholder="Prenom_Nom_Lettre_Recommandation"
+          placeholder={t("form.fileNameRecPlaceholder")}
         />
         <p className="text-[10px] text-gray-400">
-          Utilise pour le telechargement du PDF.
+          {t("form.fileNameRecHint")}
         </p>
       </Section>
     </div>
@@ -949,8 +896,8 @@ export default function ResumeBuilder() {
   const [sectionOrder, setSectionOrder] = useState([...DEFAULT_SECTION_ORDER]);
   const [selectedTemplate, setSelectedTemplate] = useState(DEFAULT_CV_TEMPLATE);
   const [aiOptions, setAiOptions] = useState({ targetLanguage: "fr", length: "concis" });
-  const [jsonText, setJsonText] = useState("");
   const [aiStatus, setAiStatus] = useState(null);
+  const [isJsonImportModalOpen, setIsJsonImportModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("profile");
   const [isFirstTime, setIsFirstTime] = useState(false);
   const [saveStatus, setSaveStatus] = useState(null);
@@ -1010,22 +957,19 @@ export default function ResumeBuilder() {
   // Save handler
   const handleSavePermanent = () => {
     savePermanentData(permData);
-    setSaveStatus({ ok: true, msg: "Profil sauvegarde dans le navigateur !" });
+    setSaveStatus({ ok: true, msg: t("saveStatus.success") });
     setIsFirstTime(false);
     setTimeout(() => setSaveStatus(null), 4000);
   };
 
-  // Auto-fill from header JSON (remplit CV dynamique + lettre + éventuellement profil permanent)
-  const handleAutoFill = () => {
-    if (!jsonText.trim()) {
-      setAiStatus({ ok: false, msg: "Collez un objet JSON d'abord." });
-      return;
-    }
+  // Applique un JSON importé (CV dynamique + lettre + éventuellement profil permanent)
+  const applyImportedJson = useCallback((jsonTextInput) => {
+    if (!jsonTextInput || !String(jsonTextInput).trim()) return;
     try {
       const parts = [];
 
       // 1) CV dynamique
-      const mapped = mapJsonToDynamicData(jsonText);
+      const mapped = mapJsonToDynamicData(jsonTextInput);
       setDynData((prev) => {
         const m = { ...prev };
         if (mapped.title) m.title = mapped.title;
@@ -1043,7 +987,7 @@ export default function ResumeBuilder() {
       if (mapped.projects.length) parts.push(`${mapped.projects.length} projet(s)`);
 
       // 2) Lettre de motivation
-      const clMapped = mapJsonToCoverLetter(jsonText);
+      const clMapped = mapJsonToCoverLetter(jsonTextInput);
       const hasClData = Object.values(clMapped).some((v) => v);
       if (hasClData) {
         setClData((prev) => {
@@ -1055,7 +999,7 @@ export default function ResumeBuilder() {
       }
 
       // 3) Profil permanent (optionnel, si le JSON contient aussi ces infos)
-      const permMapped = mapJsonToPermanentData(jsonText);
+      const permMapped = mapJsonToPermanentData(jsonTextInput);
       const hasPermData = Object.entries(permMapped).some(([_, v]) => {
         if (v == null) return false;
         if (Array.isArray(v)) return v.length > 0;
@@ -1075,18 +1019,19 @@ export default function ResumeBuilder() {
         parts.unshift("Profil permanent");
       }
 
+      setActiveTab("cv");
       setAiStatus({
         ok: true,
         msg: parts.length
-          ? `Applique : ${parts.join(", ")}. Modifiez les champs si besoin.`
-          : "JSON parse sans erreur mais aucun champ reconnu.",
+          ? `Appliqué : ${parts.join(", ")}. Modifiez les champs si besoin.`
+          : "JSON valide mais aucun champ reconnu.",
       });
-
-      if (parts.length && activeTab === "profile") setActiveTab("cv");
+      setTimeout(() => setAiStatus(null), 6000);
     } catch (e) {
       setAiStatus({ ok: false, msg: `JSON invalide : ${e.message}` });
+      setTimeout(() => setAiStatus(null), 5000);
     }
-  };
+  }, []);
 
   // Build merged data for PDF rendering
   const cvForPdf = useMemo(() => buildCvForPdf(permData, dynData), [permData, dynData]);
@@ -1276,15 +1221,18 @@ export default function ResumeBuilder() {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-slate-100">
+    <div className="flex flex-col h-screen w-full max-w-full overflow-x-hidden bg-slate-100">
       {isHelpModalOpen && <HelpModal onClose={() => setIsHelpModalOpen(false)} />}
 
       {/* ════════ HEADER: JSON zone + Auto-Fill ════════ */}
       <div className="flex-shrink-0 bg-gray-900 border-b border-gray-700 relative z-[30]">
         <div className="px-3 md:px-5 py-2 md:py-3 flex items-center justify-between gap-2">
-          <div className="min-w-0 flex-1">
-            <h1 className="text-sm md:text-lg font-bold text-white tracking-tight truncate">{t("app.title")}</h1>
-            <p className="text-[10px] text-gray-400 mt-0.5 hidden md:block">{t("app.subtitle")}</p>
+          <div className="min-w-0 flex-1 flex items-center gap-3">
+            <Link to="/" className="text-[10px] text-gray-400 hover:text-white transition shrink-0">{t("app.home")}</Link>
+            <div className="min-w-0">
+              <h1 className="text-sm md:text-lg font-bold text-white tracking-tight truncate">{t("app.title")}</h1>
+              <p className="text-[10px] text-gray-400 mt-0.5 hidden md:block">{t("app.subtitle")}</p>
+            </div>
           </div>
           {/* Desktop: full toolbar */}
           <div className="hidden md:flex items-center gap-2 shrink-0">
@@ -1302,10 +1250,11 @@ export default function ResumeBuilder() {
               value={i18n.language}
               onChange={(e) => i18n.changeLanguage(e.target.value)}
               className="text-[10px] bg-gray-800 text-gray-200 border border-gray-600 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-gray-500"
-              aria-label="Langue"
+              aria-label={t("landing.languageLabel")}
             >
-              <option value="fr">FR</option>
-              <option value="en">EN</option>
+              {SUPPORTED_LANGUAGES.map(({ code, labelKey }) => (
+                <option key={code} value={code}>{t(labelKey)}</option>
+              ))}
             </select>
             <span className="text-[10px] text-emerald-400 bg-emerald-900/30 px-2 py-0.5 rounded-full font-medium">{t("app.atsReady")}</span>
             <span className="text-[10px] text-blue-400 bg-blue-900/30 px-2 py-0.5 rounded-full font-medium">{t("app.localStorage")}</span>
@@ -1337,15 +1286,17 @@ export default function ResumeBuilder() {
         {/* Mobile dropdown menu */}
         {mobileMenuOpen && (
           <div className="md:hidden absolute left-0 right-0 top-full bg-gray-800 border-b border-gray-700 shadow-xl z-[40] px-3 py-3 space-y-2">
+            <Link to="/" onClick={() => setMobileMenuOpen(false)} className="block text-sm text-gray-300 hover:text-white py-1">{t("app.home")}</Link>
             <div className="flex items-center gap-2">
-              <span className="text-[10px] text-gray-400 uppercase">Langue</span>
+              <span className="text-[10px] text-gray-400 uppercase">{t("landing.languageLabel")}</span>
               <select
                 value={i18n.language}
                 onChange={(e) => { i18n.changeLanguage(e.target.value); setMobileMenuOpen(false); }}
                 className="text-[11px] bg-gray-700 text-gray-200 border border-gray-600 rounded px-2 py-1"
               >
-                <option value="fr">FR</option>
-                <option value="en">EN</option>
+                {SUPPORTED_LANGUAGES.map(({ code, labelKey }) => (
+                  <option key={code} value={code}>{t(labelKey)}</option>
+                ))}
               </select>
             </div>
             <AuthHeader />
@@ -1356,79 +1307,37 @@ export default function ResumeBuilder() {
           </div>
         )}
 
-        {/* AI Options */}
-        <div className="px-3 md:px-5 pt-2 pb-1 flex flex-wrap items-center gap-3 md:gap-4">
-          <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">{t("aiOptions.title")}</span>
-          <label className="flex items-center gap-1.5">
-            <span className="text-[10px] text-gray-400">{t("aiOptions.targetLanguage")}</span>
-            <select
-              value={aiOptions.targetLanguage}
-              onChange={(e) => setAiOptions((p) => ({ ...p, targetLanguage: e.target.value }))}
-              className="text-[10px] bg-gray-800 text-gray-200 border border-gray-600 rounded px-2 py-0.5"
-            >
-              <option value="fr">{t("aiOptions.targetLanguageFr")}</option>
-              <option value="en">{t("aiOptions.targetLanguageEn")}</option>
-            </select>
-          </label>
-          <label className="flex items-center gap-1.5">
-            <span className="text-[10px] text-gray-400">{t("aiOptions.length")}</span>
-            <select
-              value={aiOptions.length}
-              onChange={(e) => setAiOptions((p) => ({ ...p, length: e.target.value }))}
-              className="text-[10px] bg-gray-800 text-gray-200 border border-gray-600 rounded px-2 py-0.5"
-            >
-              <option value="concis">{t("aiOptions.lengthShort")}</option>
-              <option value="detail">{t("aiOptions.lengthDetailed")}</option>
-            </select>
-          </label>
-        </div>
-
-        <div className="px-3 md:px-5 pb-4">
-          <label className="block text-[11px] font-semibold text-gray-300 mb-1.5 uppercase tracking-wider">
-            {t("jsonZone.label")}
-          </label>
-          <div className="flex flex-col sm:flex-row gap-3">
-            <textarea
-              data-tour="json-zone"
-              value={jsonText}
-              onChange={(e) => { setJsonText(e.target.value); setAiStatus(null); }}
-              rows={3}
-              spellCheck={false}
-              placeholder={`{\n  "title": "AI Engineer Intern",\n  "summary": "...",\n  "experience": [...],\n  "skills": [...],\n  "coverLetter": { "body": "..." }\n}`}
-              className="flex-1 px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-[11px] font-mono text-gray-200 leading-relaxed focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition resize-vertical placeholder-gray-500"
-            />
-            <div className="flex flex-col gap-2 flex-shrink-0">
-              <button
-                onClick={handleAutoFill}
-                className="px-5 py-2.5 bg-red-600 text-white rounded-lg font-bold text-xs hover:bg-red-700 active:bg-red-800 transition shadow-lg shadow-red-900/30 flex items-center gap-2"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-                {t("jsonZone.autoFill")}
-              </button>
-              <button
-                onClick={() => { setJsonText(EXAMPLE_JSON); setAiStatus(null); }}
-                className="px-4 py-1.5 bg-gray-700 text-gray-300 rounded-lg text-[10px] hover:bg-gray-600 transition"
-              >
-                {t("jsonZone.loadExample")}
-              </button>
-            </div>
-          </div>
-
-          <JsonFormatHint label="(CV dynamique + lettre)" example={EXAMPLE_JSON} />
-
+        {/* Bouton Remplissage magique + message statut */}
+        <div className="px-3 md:px-5 pb-3 space-y-2">
+          <button
+            type="button"
+            onClick={() => setIsJsonImportModalOpen(true)}
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 min-h-[48px] rounded-xl bg-amber-500 text-slate-900 font-bold text-sm hover:bg-amber-400 active:bg-amber-600 transition shadow-lg shadow-amber-900/20 touch-manipulation"
+            data-tour="json-zone"
+          >
+            <span aria-hidden>🤖</span>
+            {t("jsonImportModal.title")}
+          </button>
           {aiStatus && (
-            <div className={`mt-2 p-2.5 rounded-lg text-[11px] leading-relaxed ${
+            <div className={`p-2.5 rounded-lg text-[11px] leading-relaxed ${
               aiStatus.ok
                 ? "bg-emerald-900/30 text-emerald-300 border border-emerald-700/50"
                 : "bg-red-900/30 text-red-300 border border-red-700/50"
             }`}>
-              {aiStatus.ok ? "OK " : "Erreur "}{aiStatus.msg}
+              {aiStatus.ok ? "✓ " : "Erreur "}{aiStatus.msg}
             </div>
           )}
         </div>
       </div>
+
+      {isJsonImportModalOpen && (
+        <JsonImportModal
+          isOpen={isJsonImportModalOpen}
+          onClose={() => setIsJsonImportModalOpen(false)}
+          onApply={applyImportedJson}
+          exampleJson={EXAMPLE_JSON}
+        />
+      )}
 
       {/* ════════ TAB NAVIGATION ════════ */}
       <div className="flex-shrink-0 bg-white border-b border-gray-200 px-2 md:px-5 flex items-center gap-0 overflow-x-auto min-h-0">
@@ -1525,20 +1434,20 @@ export default function ResumeBuilder() {
 
         {/* ── Left: Scrollable Form (hidden on mobile when preview active) ── */}
         <div
-          className={`bg-white border-r border-gray-200 overflow-y-auto flex flex-col ${
+          className={`bg-white border-r border-gray-200 overflow-y-auto overflow-x-hidden flex flex-col min-w-0 ${
             /* md+: fixed width; mobile: full width when edition */
             "md:w-[480px] md:min-w-[420px]"
           } ${mobilePreviewActive ? "hidden md:flex" : "flex w-full md:w-[480px] md:min-w-[420px]"}`}
           data-tour="form-column"
         >
           {/* Zone Sauvegarde : Local (toujours) + Cloud (si connecté) */}
-          <div className="px-5 pt-3 space-y-2">
+          <div className="px-4 sm:px-5 pt-3 pb-2 space-y-3">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mr-1">Sauvegarde locale</span>
+              <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mr-1">{t("cloud.saveLocal")}</span>
               <button
                 type="button"
                 onClick={handleExportProfile}
-                className="px-2.5 py-1 text-[10px] bg-gray-100 text-gray-600 rounded-md border border-gray-200 hover:bg-gray-200 transition flex items-center gap-1"
+                className="px-3 py-2 min-h-[44px] sm:min-h-0 sm:py-1 text-[10px] bg-gray-100 text-gray-600 rounded-md border border-gray-200 hover:bg-gray-200 transition flex items-center gap-1 touch-manipulation"
               >
                 📥 {t("actions.exportProfile")}
               </button>
@@ -1546,7 +1455,7 @@ export default function ResumeBuilder() {
                 <button
                   type="button"
                   onClick={() => profileFileInputRef.current && profileFileInputRef.current.click()}
-                  className="px-2.5 py-1 text-[10px] bg-gray-100 text-gray-600 rounded-md border border-gray-200 hover:bg-gray-200 transition flex items-center gap-1"
+                  className="px-3 py-2 min-h-[44px] sm:min-h-0 sm:py-1 text-[10px] bg-gray-100 text-gray-600 rounded-md border border-gray-200 hover:bg-gray-200 transition flex items-center gap-1 touch-manipulation"
                 >
                   📤 {t("actions.importProfile")}
                 </button>
@@ -1561,22 +1470,22 @@ export default function ResumeBuilder() {
             </div>
             {user && (
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mr-1">Sauvegarde cloud</span>
+                <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mr-1">{t("cloud.saveCloud")}</span>
                 <button
                   type="button"
                   onClick={handleSaveToCloud}
                   disabled={cloudLoading}
-                  className="px-2.5 py-1 text-[10px] bg-sky-100 text-sky-700 rounded-md border border-sky-200 hover:bg-sky-200 transition flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-3 py-2 min-h-[44px] sm:min-h-0 sm:py-1 text-[10px] bg-sky-100 text-sky-700 rounded-md border border-sky-200 hover:bg-sky-200 transition flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
                 >
-                  ☁️ {cloudLoading ? "..." : "Sauvegarder (Cloud)"}
+                  ☁️ {cloudLoading ? "..." : t("cloud.saveCloudBtn")}
                 </button>
                 <button
                   type="button"
                   onClick={handleLoadFromCloud}
                   disabled={cloudLoading}
-                  className="px-2.5 py-1 text-[10px] bg-sky-100 text-sky-700 rounded-md border border-sky-200 hover:bg-sky-200 transition flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-3 py-2 min-h-[44px] sm:min-h-0 sm:py-1 text-[10px] bg-sky-100 text-sky-700 rounded-md border border-sky-200 hover:bg-sky-200 transition flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
                 >
-                  ☁️ {cloudLoading ? "..." : "Charger (Cloud)"}
+                  ☁️ {cloudLoading ? "..." : t("cloud.loadCloudBtn")}
                 </button>
               </div>
             )}

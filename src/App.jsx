@@ -1,6 +1,7 @@
 import { Component, Suspense, lazy } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 
+const Home = lazy(() => import("./components/Home"));
 const ResumeBuilder = lazy(() => import("./components/ResumeBuilder"));
 const Account = lazy(() => import("./components/Account"));
 const UpdatePassword = lazy(() => import("./components/UpdatePassword"));
@@ -58,7 +59,8 @@ function App() {
       <BrowserRouter>
         <Suspense fallback={<Loading />}>
           <Routes>
-            <Route path="/" element={<ResumeBuilder />} />
+            <Route path="/" element={<Home />} />
+            <Route path="/builder" element={<ResumeBuilder />} />
             <Route path="/account" element={<Account />} />
             <Route path="/update-password" element={<UpdatePassword />} />
           </Routes>

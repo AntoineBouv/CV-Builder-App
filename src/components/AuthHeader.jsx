@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { supabase } from "../lib/supabaseClient";
 import ForgotPassword from "./ForgotPassword";
 
-export default function AuthHeader() {
+export default function AuthHeader({ initialOpen = false }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showAuth, setShowAuth] = useState(false);
@@ -30,6 +30,10 @@ export default function AuthHeader() {
     return () => subscription.unsubscribe();
   }, []);
 
+  useEffect(() => {
+    if (initialOpen) setShowAuth(true);
+  }, [initialOpen]);
+
   const handleLogin = async (e) => {
     e.preventDefault();
     setMessage({ type: "", text: "" });
@@ -42,7 +46,7 @@ export default function AuthHeader() {
       });
       return;
     }
-    setMessage({ type: "success", text: "Connexion réussie." });
+    setMessage({ type: "success", text: t("auth.loginSuccess") });
     setShowAuth(false);
     setEmail("");
     setPassword("");
@@ -78,9 +82,9 @@ export default function AuthHeader() {
         <Link
           to="/account"
           className="text-[10px] text-sky-300 hover:text-sky-200 max-w-[120px] truncate"
-          title="Mon Compte"
+          title={t("auth.myAccount")}
         >
-          Mon Compte
+          {t("auth.myAccount")}
         </Link>
         <span className="text-[10px] text-gray-400 max-w-[100px] truncate" title={user.email}>
           {user.email}
@@ -90,7 +94,7 @@ export default function AuthHeader() {
           onClick={handleSignOut}
           className="text-[10px] bg-gray-700 text-gray-200 hover:bg-gray-600 border border-gray-600 rounded px-2 py-1 transition"
         >
-          Déconnexion
+          {t("auth.signOut")}
         </button>
       </div>
     );
@@ -103,7 +107,7 @@ export default function AuthHeader() {
         onClick={() => { setShowAuth(!showAuth); setMessage({ type: "", text: "" }); }}
         className="text-[10px] bg-gray-700 text-gray-200 hover:bg-gray-600 border border-gray-600 rounded px-2 py-1 transition"
       >
-        Connexion / Inscription
+        {t("auth.loginSignup")}
       </button>
 
       {showAuth && (
@@ -119,14 +123,14 @@ export default function AuthHeader() {
               onClick={() => setMode("login")}
               className={`flex-1 text-[10px] py-1 rounded ${mode === "login" ? "bg-gray-600 text-white" : "text-gray-400 hover:text-gray-200"}`}
             >
-              Connexion
+              {t("auth.login")}
             </button>
             <button
               type="button"
               onClick={() => setMode("signup")}
               className={`flex-1 text-[10px] py-1 rounded ${mode === "signup" ? "bg-gray-600 text-white" : "text-gray-400 hover:text-gray-200"}`}
             >
-              Inscription
+              {t("auth.signup")}
             </button>
           </div>
 
@@ -135,7 +139,7 @@ export default function AuthHeader() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="Email"
+              placeholder={t("auth.email")}
               required
               className="w-full px-2 py-1.5 text-[11px] bg-gray-700 border border-gray-600 rounded text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500"
             />
@@ -143,7 +147,7 @@ export default function AuthHeader() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Mot de passe"
+              placeholder={t("auth.password")}
               required
               minLength={6}
               className="w-full px-2 py-1.5 text-[11px] bg-gray-700 border border-gray-600 rounded text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500"
@@ -152,7 +156,7 @@ export default function AuthHeader() {
               type="submit"
               className="w-full text-[10px] py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded font-medium transition"
             >
-              {mode === "login" ? "Se connecter" : "Créer un compte"}
+              {mode === "login" ? t("auth.signIn") : t("auth.createAccount")}
             </button>
             {mode === "login" && (
               <button
@@ -160,7 +164,7 @@ export default function AuthHeader() {
                 onClick={() => { setShowAuth(false); setShowForgotPassword(true); setMessage({ type: "", text: "" }); }}
                 className="w-full text-[10px] text-gray-400 hover:text-sky-400 transition"
               >
-                Mot de passe oublié ?
+                {t("auth.forgotPassword")}
               </button>
             )}
           </form>
@@ -176,7 +180,7 @@ export default function AuthHeader() {
       {showForgotPassword && (
         <ForgotPassword
           onClose={() => setShowForgotPassword(false)}
-          onSuccess={() => setMessage({ type: "success", text: "Un email contenant un lien de réinitialisation vous a été envoyé." })}
+          onSuccess={() => setMessage({ type: "success", text: t("auth.resetEmailSent") })}
         />
       )}
     </div>
